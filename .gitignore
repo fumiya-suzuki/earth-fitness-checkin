@@ -1,0 +1,10 @@
+# Go build
+checkin-app
+*.exe
+
+# Frontend secrets-ish
+public/config.js
+
+# Editor
+.vscode/
+.idea/
