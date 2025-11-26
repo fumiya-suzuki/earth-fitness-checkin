@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>EARTH FITNESS 来店履歴</title>
+  <link
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+    rel="stylesheet"
+  >
+  <script src="/payment.js?v=1"></script>
+</head>
+<body class="bg-light">
+    <div class="container py-4">
+    <div class="mb-3">
+        <a
+            href="{{if .IsPrev}}/admin/visits?mode=prev{{else}}/admin/visits{{end}}"
+            class="btn btn-sm btn-outline-primary"
+        >
+            {{if .IsPrev}}前月の来店一覧{{else}}今月の来店一覧{{end}}
+        </a>
+        <a href="/admin/visits/today" class="btn btn-sm btn-outline-info">
+          本日の来店者一覧
+        </a>
+        <a href="/admin/members" class="btn btn-sm btn-outline-success">
+            会員一覧
+        </a>
+      </div>
+
+  <h1 class="h4 mb-3">
+    {{.MonthLabel}}の来店履歴<br>
+    <small class="text-muted">
+        {{if .FullName}}
+          {{.FullName}}（LINE名: {{.DisplayName}}）
+        {{else}}
+          {{.DisplayName}}
+        {{end}}
+    </small>
+  </h1>
+
+  <p class="mb-3">
+    今月の来店回数：<strong>{{.Count}} 回</strong><br>
+    <span class="text-muted" style="font-size:0.85rem;">
+      会員種別：<code>{{if eq .MemberType "1day"}}1Day{{else}}一般{{end}}</code>
+    <br>
+      PosterID：<code>{{.PosterID}}</code>
+    </span>
+  </p>
+
+    <!-- 本日分の来店を追加 -->
+    {{if not .IsPrev}}
+        <form method="POST" action="/admin/visits/add" class="mb-3">
+            <input type="hidden" name="line_user_id" value="{{.LineUserID}}">
+            <button type="submit" class="btn btn-sm btn-outline-warning">
+            本日分の来店履歴を追加
+            </button>
+        </form>
+    {{end}}
+
+  <table class="table table-sm align-middle">
+    <thead>
+      <tr>
+        <th style="width: 60px;">No.</th>
+        <th>来店日時</th>
+        <th>支払い</th>
+        <th>操作</th>
+      </tr>
+    </thead>
+    <tbody>
+        {{range $i, $v := .Visits}}
+          <tr>
+            <td>{{add $i 1}}</td>
+            <td>{{$v.TimeStr}}</td>
+            <td>
+                {{if and (eq $.MemberType "1day") $v.NeedPayment}}
+                  <form method="POST" action="/admin/visits/pay" class="d-inline pay-form">
+                    <input type="hidden" name="visit_id" value="{{$v.ID}}">
+                    <input type="hidden" name="line_user_id" value="{{$.LineUserID}}">
+                    <input type="hidden" name="month" value="{{$.MonthKey}}">
+              
+                    <!-- チェックされていれば paid=1 が送信される。外すと key 自体が送られない -->
+                    <input
+                      type="checkbox"
+                      name="paid"
+                      value="1"
+                      class="pay-checkbox"
+                      {{if $v.Paid}}checked{{end}}>
+                    支払い済
+                  </form>
+                {{else}}
+                  -
+                {{end}}
+              </td>
+              <!-- 削除ボタン -->
+              <td>
+                <form method="POST"
+                      action="/admin/visits/delete"
+                      onsubmit="return confirm('この来店履歴を削除しますか？');"
+                      class="d-inline">
+                  <input type="hidden" name="visit_id" value="{{$v.ID}}">
+                  <input type="hidden" name="line_user_id" value="{{$.LineUserID}}">
+                  <button type="submit" class="btn btn-sm btn-outline-danger">
+                    削除
+                  </button>
+                </form>
+              </td>
+          </tr>
+        {{end}}
+        </tbody>        
+  </table>
+</div>
+</body>
+</html>

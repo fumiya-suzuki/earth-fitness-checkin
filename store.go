@@ -9,6 +9,7 @@ import (
 // フロントから来るJSONの形
 type checkinRequest struct {
 	UserID string `json:"userId"`
+	DisplayName  string `json:"displayName"`
 }
 
 // チェックインしたときの情報
@@ -79,3 +80,48 @@ func isCheckedIn(userID string) bool {
 	_, ok := checkedInUsers[userID]
 	return ok
 }
+
+// visitを記録する（チェックイン時に呼ぶ）
+func recordVisit(lineUserID, displayName string) (err error) {
+	if lineUserID == "" {
+		return nil
+	}
+
+	// 日本時間で「今」
+	jst := time.FixedZone("Asia/Tokyo", 9*60*60)
+	now := time.Now().In(jst)
+	visitedAt := now.Format("2006-01-02 15:04:05") // 例: 2025-11-25T08:22:13+09:00
+
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err != nil {
+			_ = tx.Rollback()
+		}
+	}()
+
+	// members にユーザーを登録（なければ INSERT、あれば display_name を更新）
+	if _, err = tx.Exec(
+		`INSERT INTO members(line_user_id, display_name, member_type, created_at)
+         VALUES(?, ?, 'general', ?)
+         ON CONFLICT(line_user_id)
+         DO UPDATE SET display_name = excluded.display_name`,
+		lineUserID, displayName, visitedAt,
+	); err != nil {
+		return err
+	}
+
+	// visits に1件挿入（paid は 0）
+	if _, err = tx.Exec(
+		`INSERT INTO visits(line_user_id, visited_at, paid)
+         VALUES(?, ?, 0)`,
+		lineUserID, visitedAt,
+	); err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+

@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>EARTH FITNESS 混雑状況</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css">
+  <style>
+    /* ビューア用のちょい調整（必要なら） */
+    .viewer-card { max-width: 720px; margin: 0 auto; }
+    .last-updated { font-size: .9rem; color:#6b7280; }
+  </style>
+</head>
+<body class="bg-light">
+  <div class="container py-4">
+    <div class="card shadow-sm viewer-card">
+      <div class="card-body text-center">
+        <div style="width: 100%;">
+          <img src="./store.png" style="width: 100%;">
+        </div>
+
+        <div class="store-info" style="padding:0px 1.5rem;text-align: left;">
+          <h1 class="h4 mb-3 fw-bold">EARTH FITNESS</h1>
+          <p><img src="./access.png"> JR山手線目黒駅 徒歩８分 / 地下鉄目黒線・南北線目黒駅 徒歩８分</p>
+          <p><img src="./map.png"> 東京都目黒区下目黒2-19-6 F&Tビル1階</p>
+          <p><img src="./open.png"> 平日：10:00~21:30 / 土：10:00~21:00 / 日・祝：10:00~19:00</p>
+        </div>
+
+        <!-- バー＋アイコン -->
+        <div class="capacity-wrapper mb-3">
+          <div class="capacity-icon"><img id="capacityIcon" src="/good.png" alt="status"></div>
+          <div class="capacity-bar">
+            <div id="capacityFill" class="capacity-fill"></div>
+            <div id="capacityPercent" class="capacity-percent">0%</div>
+          </div>
+        </div>
+
+        <p id="capacityText" class="capacity-text mb-2"></p>
+        <div id="updatedAt" class="last-updated">最終更新: -</div>
+        <div id="errorMsg" class="text-danger mt-2"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/viewer.js?v=1"></script>
+</body>
+</html>

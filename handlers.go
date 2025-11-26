@@ -29,6 +29,11 @@ func handleCheckin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 来店履歴を保存
+	if err := recordVisit(req.UserID, req.DisplayName); err != nil {
+		log.Println("recordVisit error:", err)
+	}
+
 	count := addCheckin(req.UserID)
 
 	w.Header().Set("Content-Type", "application/json")

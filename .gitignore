@@ -8,3 +8,8 @@ public/config.js
 # Editor
 .vscode/
 .idea/
+
+# SQLite DB
+*.db
+*.db-shm
+*.db-wal

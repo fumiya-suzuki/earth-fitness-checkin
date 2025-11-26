@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>EARTH FITNESS 会員一覧</title>
+  <link
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+    rel="stylesheet"
+  >
+</head>
+<body class="bg-light">
+    <div class="container py-4">
+    <div class="mb-3">
+        <a href="/admin/visits" class="btn btn-sm btn-outline-primary me-2">
+            今月の来店一覧
+        </a>
+        <a href="/admin/visits/today" class="btn btn-sm btn-outline-info">
+            本日の来店者一覧
+        </a>
+        <a href="/admin/members" class="btn btn-sm btn-outline-success">
+            会員一覧
+        </a>
+      </div>
+  <h1 class="h3 mb-3">会員一覧</h1>
+
+  {{if .SuccessMsg}}
+    <div class="alert alert-success py-2">
+      {{.SuccessMsg}}
+    </div>
+  {{end}}
+
+  <p class="text-muted mb-3">
+    登録済みの全会員を表示しています。<br>
+    「今月の来店回数」をクリックすると、その人の今月の来店履歴ページに移動します。
+  </p>
+
+  <form method="GET" class="row g-2 mb-3">
+    <div class="col-sm-4">
+      <input
+        type="text"
+        name="q"
+        class="form-control form-control-sm"
+        placeholder="名前 / LINE ID / PosterID で検索"
+        value="{{.Q}}"
+      >
+    </div>
+    <div class="col-sm-3">
+      <select name="member_type" class="form-select form-select-sm">
+        <option value="">会員種別（すべて）</option>
+        <option value="general" {{if eq .MemberTypeFilter "general"}}selected{{end}}>一般</option>
+        <option value="1day" {{if eq .MemberTypeFilter "1day"}}selected{{end}}>1Day</option>
+      </select>
+    </div>
+    <div class="col-sm-2">
+      <button type="submit" class="btn btn-sm btn-outline-primary w-100">
+        絞り込み
+      </button>
+    </div>
+    <div class="col-sm-2">
+      <a href="/admin/members" class="btn btn-sm btn-outline-secondary w-100">
+        クリア
+      </a>
+    </div>
+  </form>
+  
+
+  <table class="table table-sm align-middle">
+    <thead>
+      <tr>
+        <th>氏名（フルネーム）</th>
+        <th>表示名（LINE）</th>
+        <th>会員種別</th>
+        <th>今月の来店回数</th>
+        <th>LINEユーザーID</th>
+        <th>PosterID（管理用）</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Members}}
+      <tr>
+        <td>
+            {{if .FullName}}
+              {{.FullName}}
+            {{else}}
+              <span class="text-muted">未登録</span>
+            {{end}}
+        </td>
+        <td>{{.DisplayName}}</td>
+        <!-- 会員種別 + 切り替えボタン -->
+        <td>
+            {{if eq .MemberType "1day"}}
+              <span class="badge text-bg-success me-2">1Day</span>
+            {{else}}
+              <span class="badge text-bg-primary me-2">一般</span>
+            {{end}}
+      
+            <!-- 会員種別切り替えフォーム -->
+            <form method="POST" action="/admin/member/type" class="d-inline">
+              <input type="hidden" name="line_user_id" value="{{.LineUserID}}">
+              {{if eq .MemberType "1day"}}
+                <input type="hidden" name="member_type" value="general">
+                <button type="submit" class="btn btn-sm btn-outline-primary">
+                  一般に変更
+                </button>
+              {{else}}
+                <input type="hidden" name="member_type" value="1day">
+                <button type="submit" class="btn btn-sm btn-outline-success">
+                  1Dayに変更
+                </button>
+              {{end}}
+            </form>
+          </td>
+
+        <td>
+          <a href="/admin/visits/user?line_user_id={{.LineUserID}}">
+            {{.MonthlyCount}}
+          </a>
+        </td>
+        <td><code style="font-size:0.7rem">{{.LineUserID}}</code></td>
+
+        <!-- PosterID 編集 -->
+        <td>
+          <!-- 表示モード -->
+          <div class="poster-view align-items-center gap-2">
+            <span class="poster-text">
+              {{if .PosterID}}{{.PosterID}}{{else}}未設定{{end}}
+            </span>
+            <button type="button" class="btn btn-sm btn-outline-secondary poster-edit-btn">
+              編集
+            </button>
+          </div>
+
+          <!-- 編集モード（最初は非表示） -->
+          <form method="POST" action="/admin/member/poster-id"
+                class="poster-edit-form gap-1 mt-1" style="display:none;">
+            <input type="hidden" name="line_user_id" value="{{.LineUserID}}">
+            <input
+              type="text"
+              name="poster_id"
+              value="{{.PosterID}}"
+              class="form-control form-control-sm"
+              placeholder="PosterID"
+              style="max-width: 180px;"
+            >
+            <button type="submit" class="btn btn-sm btn-outline-primary">
+              保存
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-secondary poster-cancel-btn">
+              キャンセル
+            </button>
+          </form>
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+
+<!-- PosterID 編集用のJS -->
+<script src="/poster.js"></script>
+</body>
+</html>
