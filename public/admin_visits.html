@@ -74,6 +74,18 @@
     </div>
   </form>
   
+  {{if .IsFiltered}}
+  <div class="alert alert-info py-2 mb-3" style="font-size:0.85rem;">
+    絞り込み中：
+    {{if .Q}}キーワード「{{.Q}}」{{end}}
+    {{if .MemberTypeFilter}}
+      {{if .Q}} / {{end}}
+      会員種別：
+      {{if eq .MemberTypeFilter "1day"}}1Day{{else}}一般{{end}}
+    {{end}}
+  </div>
+{{end}}
+
 
   {{if .SuccessMsg}}
     <div class="alert alert-success py-2">

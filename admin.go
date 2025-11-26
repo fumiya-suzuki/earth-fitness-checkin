@@ -233,6 +233,9 @@ func handleAdminVisits(w http.ResponseWriter, r *http.Request) {
 
 	successMsg := r.URL.Query().Get("success_msg")
 
+	isFiltered := strings.TrimSpace(q) != "" ||
+        memberType == "general" || memberType == "1day"
+
 	data := struct {
 		Summaries        []VisitSummary
 		MonthLabel       string
@@ -243,6 +246,7 @@ func handleAdminVisits(w http.ResponseWriter, r *http.Request) {
 		SuccessMsg       string
 		Q                string
 		MemberTypeFilter string
+		IsFiltered       bool
 	}{
 		Summaries:        summaries,
 		MonthLabel:       monthLabel,
@@ -253,6 +257,7 @@ func handleAdminVisits(w http.ResponseWriter, r *http.Request) {
 		SuccessMsg:       successMsg,
 		Q:                q,
 		MemberTypeFilter: memberType,
+		IsFiltered:       isFiltered,
 	}
 
 	if err := adminVisitsTmpl.Execute(w, data); err != nil {
@@ -445,7 +450,7 @@ func getUserMonthlyVisitDetail(lineUserID, ym string) (*VisitDetail, error) {
           IFNULL(m.full_name, ''),
           IFNULL(m.member_type, 'general'),
           IFNULL(m.poster_id, ''), 
-          strftime('%Y/%m/%d %H:%M', v.visited_at, 'localtime') AS visited_local,
+          strftime('%Y/%m/%d %H:%M', v.visited_at) AS visited_local,
           IFNULL(v.paid, 0)
         FROM visits v
         LEFT JOIN members m ON m.line_user_id = v.line_user_id
@@ -708,16 +713,21 @@ func handleAdminMembers(w http.ResponseWriter, r *http.Request) {
 
 	successMsg := r.URL.Query().Get("success_msg")
 
+	isFiltered := strings.TrimSpace(q) != "" ||
+        memberType == "general" || memberType == "1day"
+
 	data := struct {
 		Members          []MemberSummary
 		SuccessMsg       string
 		Q                string
 		MemberTypeFilter string
+		IsFiltered       bool
 	}{
 		Members:          members,
 		SuccessMsg:       successMsg,
 		Q:                q,
 		MemberTypeFilter: memberType,
+		IsFiltered:       isFiltered,
 	}
 
 	if err := adminMembersTmpl.Execute(w, data); err != nil {
