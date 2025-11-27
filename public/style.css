@@ -34,7 +34,7 @@ body {
   }
   
   .capacity-icon {
-    font-size: 2.5rem; /* アイコンも大きめにしとく */
+    font-size: 3rem; /* アイコンも大きめにしとく */
   }
   
   .capacity-bar {
@@ -69,7 +69,7 @@ body {
   
   /* 混雑度テキスト */
   .capacity-text {
-    font-size: 2rem;
+    font-size: 3rem;
     color: #555;
     text-align: center;
     margin-top: 0.1rem;
@@ -84,11 +84,15 @@ body {
   }
   
   .actions .btn {
-    flex: 0 0 40%;        /* 2つで80% */
-    max-width: 40%;
-    font-size: 1.5rem;
-    padding: 1.2rem 0;
+    max-width: 80%;
+    font-size: 3.75rem;
+    padding: 3rem 0;
     margin-bottom: 0.5rem;
+  }
+
+  p {
+    font-size: 2.25rem;
+    margin-bottom: 1rem;
   }
   
   /* スマホのときは縦並び＆100% */
