@@ -68,7 +68,7 @@ body {
   }
   
   /* 混雑度テキスト */
-  .capacity-text {
+  .checkin-box .capacity-text {
     font-size: 3rem;
     color: #555;
     text-align: center;
@@ -90,8 +90,8 @@ body {
     margin-bottom: 0.5rem;
   }
 
-  p {
-    font-size: 2.2rem;
+  .checkin-box p {
+    font-size: 2.25rem;
     margin-bottom: 1rem;
   }
   
