@@ -22,7 +22,7 @@ var (
 	mu             sync.Mutex
 	checkedInUsers = make(map[string]checkinInfo)
 	maxPeople      = 10			   // Max定員10人（Jsと合わせる）
-	expireAfter    = 3 * time.Hour // 3時間で自動的に無効とみなす
+	expireAfter    = 1.5 * time.Hour // 1.5時間で自動的に無効とみなす
 )
 
 // 期限切れの人を消す共通処理
