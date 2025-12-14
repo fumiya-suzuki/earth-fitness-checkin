@@ -115,5 +115,23 @@
     </tbody>
   </table>
 </div>  
+<script>
+  // 本日の来店一覧ページ用：1分ごとに自動リロード
+  document.addEventListener("DOMContentLoaded", function () {
+    setInterval(function () {
+      // PosterID編集中かどうかを確認（編集中ならリロードしない）
+      const editing = Array.from(
+        document.querySelectorAll(".poster-edit-form")
+      ).some(form => {
+        return window.getComputedStyle(form).display !== "none";
+      });
+
+      if (!editing) {
+        // 編集していないときだけリロード
+        location.reload();
+      }
+    }, 60 * 1000); // 60秒ごと
+  });
+</script>
 </body>
 </html>
