@@ -737,16 +737,17 @@ func handleAdminMembers(w http.ResponseWriter, r *http.Request) {
 
 // POST /admin/visits/add
 func handleAdminVisitAdd(w http.ResponseWriter, r *http.Request) {
+	log.Printf("0");
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-
+	log.Printf("1");
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
-
+	log.Printf("2");
 	lineUserID := r.FormValue("line_user_id")
 	if lineUserID == "" {
 		http.Error(w, "line_user_id is required", http.StatusBadRequest)
@@ -759,7 +760,7 @@ func handleAdminVisitAdd(w http.ResponseWriter, r *http.Request) {
 	visitedAt := now.Format("2006-01-02 15:04:05")
 
 	log.Printf("[ADMIN] add manual visit: user=%s at %s\n", lineUserID, visitedAt)
-	
+
 	_, err := db.Exec(
 		`INSERT INTO visits (line_user_id, visited_at, paid)
 			VALUES (?, ?, 0)`,
