@@ -758,6 +758,8 @@ func handleAdminVisitAdd(w http.ResponseWriter, r *http.Request) {
 	now := time.Now().In(jst)
 	visitedAt := now.Format("2006-01-02 15:04:05")
 
+	log.Printf("[ADMIN] add manual visit: user=%s at %s\n", lineUserID, visitedAt)
+	
 	_, err := db.Exec(
 		`INSERT INTO visits (line_user_id, visited_at, paid)
 			VALUES (?, ?, 0)`,

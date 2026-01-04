@@ -113,7 +113,6 @@ func handleMemberProfileGet(w http.ResponseWriter, r *http.Request) {
 
 
 // POST: プロファイル登録/更新
-// POST: プロファイル登録/更新
 func handleMemberProfilePost(w http.ResponseWriter, r *http.Request) {
     var req memberProfileRequest
     if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
