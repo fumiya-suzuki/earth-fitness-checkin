@@ -33,8 +33,8 @@
 
   <p class="text-muted mb-3">
     {{.DateLabel}}にチェックインした人だけを表示しています。<br>
-    1Day会員かつ6回来店以上の方で未払いがある場合は赤背景で表示されます。<br>
-    1Day会員かつ6回来店以上の方で全て支払い済みの場合は緑背景で表示されます。
+    ライトプラン会員かつ6回来店以上の方で未払いがある場合は赤背景で表示されます。<br>
+    ライトプラン会員かつ6回来店以上の方で全て支払い済みの場合は緑背景で表示されます。
   </p>
 
   <table class="table table-sm align-middle">
@@ -64,10 +64,10 @@
         </td>
         <!-- 会員種別 -->
         <td>
-            {{if eq .MemberType "1day"}}
-              <span class="badge text-bg-success">1Day</span>
+            {{if eq .MemberType "ライトプラン"}}
+              <span class="badge text-bg-success">ライトプラン</span>
             {{else}}
-              <span class="badge text-bg-primary">一般</span>
+              <span class="badge text-bg-primary">フリープラン</span>
             {{end}}
           </td>
   

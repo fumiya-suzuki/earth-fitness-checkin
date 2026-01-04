@@ -58,8 +58,8 @@
     <div class="col-sm-3">
       <select name="member_type" class="form-select form-select-sm">
         <option value="">会員種別（すべて）</option>
-        <option value="general" {{if eq .MemberTypeFilter "general"}}selected{{end}}>一般</option>
-        <option value="1day" {{if eq .MemberTypeFilter "1day"}}selected{{end}}>1Day</option>
+        <option value="general" {{if eq .MemberTypeFilter "general"}}selected{{end}}>フリープラン</option>
+        <option value="ライトプラン" {{if eq .MemberTypeFilter "ライトプラン"}}selected{{end}}>ライトプラン</option>
       </select>
     </div>
     <div class="col-sm-2">
@@ -81,7 +81,7 @@
     {{if .MemberTypeFilter}}
       {{if .Q}} / {{end}}
       会員種別：
-      {{if eq .MemberTypeFilter "1day"}}1Day{{else}}一般{{end}}
+      {{if eq .MemberTypeFilter "ライトプラン"}}ライトプラン{{else}}フリープラン{{end}}
     {{end}}
   </div>
 {{end}}
@@ -95,8 +95,8 @@
 
   <p class="text-muted mb-3">
     {{.MonthLabel}}に来店した会員の一覧です。<br>
-    1Day会員かつ6回来店以上の方で未払いがある場合は赤背景で表示されます。<br>
-    1Day会員かつ6回来店以上の方で全て支払い済みの場合は緑背景で表示されます。
+    ライトプラン会員かつ6回来店以上の方で未払いがある場合は赤背景で表示されます。<br>
+    ライトプラン会員かつ6回来店以上の方で全て支払い済みの場合は緑背景で表示されます。
   </p>
 
   <table class="table table-sm align-middle">
@@ -127,10 +127,10 @@
     
         <!-- 会員種別 -->
         <td>
-            {{if eq .MemberType "1day"}}
-              <span class="badge text-bg-success">1Day</span>
+            {{if eq .MemberType "ライトプラン"}}
+              <span class="badge text-bg-success">ライトプラン</span>
             {{else}}
-              <span class="badge text-bg-primary">一般</span>
+              <span class="badge text-bg-primary">フリープラン</span>
             {{end}}
           </td>
     

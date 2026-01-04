@@ -53,7 +53,7 @@ type memberProfileRequest struct {
     UserID     string `json:"userId"`
     LastName   string `json:"lastName"`
     FirstName  string `json:"firstName"`
-	MemberType string `json:"memberType"` // "general" or "1day"
+	MemberType string `json:"memberType"` // "general" or "ライトプラン"
 	DisplayName string `json:"displayName"`
 }
 
@@ -125,7 +125,7 @@ func handleMemberProfilePost(w http.ResponseWriter, r *http.Request) {
         http.Error(w, "bad request", http.StatusBadRequest)
         return
     }
-    if req.MemberType != "general" && req.MemberType != "1day" {
+    if req.MemberType != "general" && req.MemberType != "ライトプラン" {
         http.Error(w, "bad memberType", http.StatusBadRequest)
         return
     }

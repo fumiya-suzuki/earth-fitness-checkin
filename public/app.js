@@ -89,7 +89,7 @@ async function submitProfile() {
         userId: currentUserId,
         lastName,
         firstName,
-        memberType,      // "general" or "1day"
+        memberType,      // "general" or "ライトプラン"
         displayName: currentDisplayName,
       }),
     });

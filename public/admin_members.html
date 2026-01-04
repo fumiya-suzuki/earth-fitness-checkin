@@ -47,8 +47,8 @@
     <div class="col-sm-3">
       <select name="member_type" class="form-select form-select-sm">
         <option value="">会員種別（すべて）</option>
-        <option value="general" {{if eq .MemberTypeFilter "general"}}selected{{end}}>一般</option>
-        <option value="1day" {{if eq .MemberTypeFilter "1day"}}selected{{end}}>1Day</option>
+        <option value="general" {{if eq .MemberTypeFilter "general"}}selected{{end}}>フリープラン</option>
+        <option value="ライトプラン" {{if eq .MemberTypeFilter "ライトプラン"}}selected{{end}}>ライトプラン</option>
       </select>
     </div>
     <div class="col-sm-2">
@@ -70,7 +70,7 @@
         {{if .MemberTypeFilter}}
         {{if .Q}} / {{end}}
         会員種別：
-        {{if eq .MemberTypeFilter "1day"}}1Day{{else}}一般{{end}}
+        {{if eq .MemberTypeFilter "ライトプラン"}}ライトプラン{{else}}フリープラン{{end}}
         {{end}}
     </div>
   {{end}}
@@ -100,24 +100,24 @@
         <td>{{.DisplayName}}</td>
         <!-- 会員種別 + 切り替えボタン -->
         <td>
-            {{if eq .MemberType "1day"}}
-              <span class="badge text-bg-success me-2">1Day</span>
+            {{if eq .MemberType "ライトプラン"}}
+              <span class="badge text-bg-success me-2">ライトプラン</span>
             {{else}}
-              <span class="badge text-bg-primary me-2">一般</span>
+              <span class="badge text-bg-primary me-2">フリープラン</span>
             {{end}}
       
             <!-- 会員種別切り替えフォーム -->
             <form method="POST" action="/admin/member/type" class="d-inline">
               <input type="hidden" name="line_user_id" value="{{.LineUserID}}">
-              {{if eq .MemberType "1day"}}
+              {{if eq .MemberType "ライトプラン"}}
                 <input type="hidden" name="member_type" value="general">
                 <button type="submit" class="btn btn-sm btn-outline-primary">
-                  一般に変更
+                  フリープランに変更
                 </button>
               {{else}}
-                <input type="hidden" name="member_type" value="1day">
+                <input type="hidden" name="member_type" value="ライトプラン">
                 <button type="submit" class="btn btn-sm btn-outline-success">
-                  1Dayに変更
+                  ライトプランに変更
                 </button>
               {{end}}
             </form>
