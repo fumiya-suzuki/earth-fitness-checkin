@@ -737,17 +737,17 @@ func handleAdminMembers(w http.ResponseWriter, r *http.Request) {
 
 // POST /admin/visits/add
 func handleAdminVisitAdd(w http.ResponseWriter, r *http.Request) {
-	log.Printf("0");
+
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	log.Printf("1");
+
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
-	log.Printf("2");
+
 	lineUserID := r.FormValue("line_user_id")
 	if lineUserID == "" {
 		http.Error(w, "line_user_id is required", http.StatusBadRequest)
