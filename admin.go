@@ -65,8 +65,8 @@ WHERE strftime('%Y-%m', v.visited_at, 'localtime') = ?
 	args := []interface{}{ym}
 	var where []string
 
-	// 会員種別フィルタ（general / ライトプラン）
-	if filterType == "general" || filterType == "ライトプラン" {
+	// 会員種別フィルタ（general / 1day）
+	if filterType == "general" || filterType == "1day" {
 		where = append(where, "m.member_type = ?")
 		args = append(args, filterType)
 	}
@@ -117,7 +117,7 @@ ORDER BY cnt DESC, m.display_name;
 		s.HighlightGreen = false
 
 		// ライトプラン かつ 今月6回以上なら支払い状況をチェック
-		if s.MemberType == "ライトプラン" && s.Count >= 6 {
+		if s.MemberType == "1day" && s.Count >= 6 {
 			allPaid, err := isAllDueVisitsPaid(s.LineUserID)
 			if err != nil {
 				log.Println("isAllDueVisitsPaid error:", err)
@@ -192,7 +192,7 @@ ORDER BY
 		s.HighlightRed = false
 		s.HighlightGreen = false
 
-		if s.MemberType == "ライトプラン" && s.Count >= 6 {
+		if s.MemberType == "1day" && s.Count >= 6 {
 			allPaid, err := isAllDueVisitsPaid(s.LineUserID)
 			if err != nil {
 				log.Println("isAllDueVisitsPaid error:", err)
@@ -212,7 +212,7 @@ ORDER BY
 func handleAdminVisits(w http.ResponseWriter, r *http.Request) {
 	mode := r.URL.Query().Get("mode")
 	q := r.URL.Query().Get("q")                     // フィルタ文字列
-	memberType := r.URL.Query().Get("member_type")  // "general" / "ライトプラン" / ""
+	memberType := r.URL.Query().Get("member_type")  // "general" / "1day" / ""
 
 	base := time.Now()
 	if mode == "prev" {
@@ -234,7 +234,7 @@ func handleAdminVisits(w http.ResponseWriter, r *http.Request) {
 	successMsg := r.URL.Query().Get("success_msg")
 
 	isFiltered := strings.TrimSpace(q) != "" ||
-        memberType == "general" || memberType == "ライトプラン"
+        memberType == "general" || memberType == "1day"
 
 	data := struct {
 		Summaries        []VisitSummary
@@ -308,7 +308,7 @@ func handleAdminUpdateMemberType(w http.ResponseWriter, r *http.Request) {
 	lineUserID := r.FormValue("line_user_id")
 	newType := r.FormValue("member_type")
 
-	if lineUserID == "" || (newType != "general" && newType != "ライトプラン") {
+	if lineUserID == "" || (newType != "general" && newType != "1day") {
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
@@ -490,7 +490,7 @@ func getUserMonthlyVisitDetail(lineUserID, ym string) (*VisitDetail, error) {
 			ID:          id,
 			TimeStr:     visitedAtStr,
 			Paid:        paidInt != 0,
-			NeedPayment: (memberType == "ライトプラン" && i >= 6),
+			NeedPayment: (memberType == "1day" && i >= 6),
 		}
 		detail.Visits = append(detail.Visits, rec)
 	}
@@ -643,7 +643,7 @@ LEFT JOIN visits v ON v.line_user_id = m.line_user_id
 	var args []interface{}
 
 	// 会員種別フィルタ
-	if filterType == "general" || filterType == "ライトプラン" {
+	if filterType == "general" || filterType == "1day" {
 		where = append(where, "m.member_type = ?")
 		args = append(args, filterType)
 	}
@@ -714,7 +714,7 @@ func handleAdminMembers(w http.ResponseWriter, r *http.Request) {
 	successMsg := r.URL.Query().Get("success_msg")
 
 	isFiltered := strings.TrimSpace(q) != "" ||
-        memberType == "general" || memberType == "ライトプラン"
+        memberType == "general" || memberType == "1day"
 
 	data := struct {
 		Members          []MemberSummary

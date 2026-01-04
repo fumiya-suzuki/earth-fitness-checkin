@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS members (
   line_user_id  TEXT PRIMARY KEY,          -- LINEのユーザーID
   display_name  TEXT,                      -- LINEの表示名（ニックネーム）
   poster_id     TEXT,                      -- 将来使う用
-  member_type   TEXT NOT NULL DEFAULT 'general', -- 'general' or 'ライトプラン'
+  member_type   TEXT NOT NULL DEFAULT 'general', -- 'general' or '1day'
   created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 

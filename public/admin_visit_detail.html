@@ -40,7 +40,7 @@
   <p class="mb-3">
     今月の来店回数：<strong>{{.Count}} 回</strong><br>
     <span class="text-muted" style="font-size:0.85rem;">
-      会員種別：<code>{{if eq .MemberType "ライトプラン"}}ライトプラン{{else}}フリープラン{{end}}</code>
+      会員種別：<code>{{if eq .MemberType "1day"}}ライトプラン{{else}}フリープラン{{end}}</code>
     <br>
       PosterID：<code>{{.PosterID}}</code>
     </span>
@@ -71,7 +71,7 @@
             <td>{{add $i 1}}</td>
             <td>{{$v.TimeStr}}</td>
             <td>
-                {{if and (eq $.MemberType "ライトプラン") $v.NeedPayment}}
+                {{if and (eq $.MemberType "1day") $v.NeedPayment}}
                   <form method="POST" action="/admin/visits/pay" class="d-inline pay-form">
                     <input type="hidden" name="visit_id" value="{{$v.ID}}">
                     <input type="hidden" name="line_user_id" value="{{$.LineUserID}}">

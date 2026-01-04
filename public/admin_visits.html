@@ -59,7 +59,7 @@
       <select name="member_type" class="form-select form-select-sm">
         <option value="">会員種別（すべて）</option>
         <option value="general" {{if eq .MemberTypeFilter "general"}}selected{{end}}>フリープラン</option>
-        <option value="ライトプラン" {{if eq .MemberTypeFilter "ライトプラン"}}selected{{end}}>ライトプラン</option>
+        <option value="1day" {{if eq .MemberTypeFilter "1day"}}selected{{end}}>ライトプラン</option>
       </select>
     </div>
     <div class="col-sm-2">
@@ -81,7 +81,7 @@
     {{if .MemberTypeFilter}}
       {{if .Q}} / {{end}}
       会員種別：
-      {{if eq .MemberTypeFilter "ライトプラン"}}ライトプラン{{else}}フリープラン{{end}}
+      {{if eq .MemberTypeFilter "1day"}}ライトプラン{{else}}フリープラン{{end}}
     {{end}}
   </div>
 {{end}}
@@ -127,7 +127,7 @@
     
         <!-- 会員種別 -->
         <td>
-            {{if eq .MemberType "ライトプラン"}}
+            {{if eq .MemberType "1day"}}
               <span class="badge text-bg-success">ライトプラン</span>
             {{else}}
               <span class="badge text-bg-primary">フリープラン</span>
