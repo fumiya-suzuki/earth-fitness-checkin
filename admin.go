@@ -754,10 +754,15 @@ func handleAdminVisitAdd(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 本日分の来店を1件追加（支払い済みフラグは 0）
+	jst := time.FixedZone("Asia/Tokyo", 9*60*60)
+	now := time.Now().In(jst)
+	visitedAt := now.Format("2006-01-02 15:04:05")
+
 	_, err := db.Exec(
 		`INSERT INTO visits (line_user_id, visited_at, paid)
-         VALUES (?, datetime('now','localtime'), 0)`,
+			VALUES (?, ?, 0)`,
 		lineUserID,
+		visitedAt,
 	)
 	if err != nil {
 		log.Println("insert visit error:", err)
