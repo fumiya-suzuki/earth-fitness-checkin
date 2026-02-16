@@ -116,7 +116,7 @@ ORDER BY cnt DESC, m.display_name;
 		s.HighlightRed = false
 		s.HighlightGreen = false
 
-		// ライトプラン かつ 今月6回以上なら支払い状況をチェック
+		// ライトプラン かつ 今月5回以上なら支払い状況をチェック
 		if s.MemberType == "1day" && s.Count >= 6 {
 			allPaid, err := isAllDueVisitsPaid(s.LineUserID)
 			if err != nil {
@@ -192,7 +192,7 @@ ORDER BY
 		s.HighlightRed = false
 		s.HighlightGreen = false
 
-		if s.MemberType == "1day" && s.Count >= 6 {
+		if s.MemberType == "1day" && s.Count >= 5 {
 			allPaid, err := isAllDueVisitsPaid(s.LineUserID)
 			if err != nil {
 				log.Println("isAllDueVisitsPaid error:", err)
@@ -490,7 +490,7 @@ func getUserMonthlyVisitDetail(lineUserID, ym string) (*VisitDetail, error) {
 			ID:          id,
 			TimeStr:     visitedAtStr,
 			Paid:        paidInt != 0,
-			NeedPayment: (memberType == "1day" && i >= 6),
+			NeedPayment: (memberType == "1day" && i >= 5),
 		}
 		detail.Visits = append(detail.Visits, rec)
 	}
@@ -524,7 +524,7 @@ func handleAdminVisitDetail(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// 今月の 6 回目以降の来店がすべて paid=1 かどうか
+// 今月の 5 回目以降の来店がすべて paid=1 かどうか
 func isAllDueVisitsPaid(lineUserID string) (bool, error) {
 	rows, err := db.Query(`
 SELECT 
@@ -549,8 +549,8 @@ ORDER BY v.visited_at ASC;
 		if err := rows.Scan(&visitedAtStr, &paidInt); err != nil {
 			return false, err
 		}
-		// 6回目以降で未払いが1件でもあれば NG
-		if i >= 6 && paidInt == 0 {
+		// 5回目以降で未払いが1件でもあれば NG
+		if i >= 5 && paidInt == 0 {
 			return false, nil
 		}
 	}
