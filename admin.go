@@ -117,7 +117,7 @@ ORDER BY cnt DESC, m.display_name;
 		s.HighlightGreen = false
 
 		// ライトプラン かつ 今月5回以上なら支払い状況をチェック
-		if s.MemberType == "1day" && s.Count >= 6 {
+		if s.MemberType == "1day" && s.Count >= 5 {
 			allPaid, err := isAllDueVisitsPaid(s.LineUserID)
 			if err != nil {
 				log.Println("isAllDueVisitsPaid error:", err)
@@ -134,7 +134,7 @@ ORDER BY cnt DESC, m.display_name;
 	return list, rows.Err()
 }
 
-// 今日分の集計を取得（ここは今まで通り）
+// 今日分の集計を取得
 func getTodaySummaries() ([]VisitSummary, error) {
 	rows, err := db.Query(`
 WITH monthly AS (
