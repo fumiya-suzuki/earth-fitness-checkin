@@ -88,8 +88,8 @@ WHERE strftime('%Y-%m', v.visited_at, 'localtime') = ?
 	}
 
 	baseSQL += `
-GROUP BY v.line_user_id, m.display_name, m.member_type, m.poster_id
-ORDER BY cnt DESC, m.display_name;
+	GROUP BY v.line_user_id, m.display_name, m.full_name, m.member_type, m.poster_id
+	ORDER BY cnt DESC, m.display_name;
 `
 
 	rows, err := db.Query(baseSQL, args...)
@@ -117,8 +117,9 @@ ORDER BY cnt DESC, m.display_name;
 		s.HighlightGreen = false
 
 		// ライトプラン かつ 今月5回以上なら支払い状況をチェック
-		if s.MemberType == "1day" && s.Count >= 5 {
-			allPaid, err := isAllDueVisitsPaid(s.LineUserID)
+		threshold := 5
+		if s.MemberType == "1day" && s.Count >= threshold {
+			allPaid, err := isAllDueVisitsPaid(s.LineUserID, ym, threshold)
 			if err != nil {
 				log.Println("isAllDueVisitsPaid error:", err)
 			} else if allPaid {
@@ -192,8 +193,10 @@ ORDER BY
 		s.HighlightRed = false
 		s.HighlightGreen = false
 
-		if s.MemberType == "1day" && s.Count >= 5 {
-			allPaid, err := isAllDueVisitsPaid(s.LineUserID)
+		ym := time.Now().Format("2006-01")
+		threshold := 5
+		if s.MemberType == "1day" && s.Count >= threshold {
+			allPaid, err := isAllDueVisitsPaid(s.LineUserID, ym, threshold)
 			if err != nil {
 				log.Println("isAllDueVisitsPaid error:", err)
 			} else if allPaid {
@@ -524,18 +527,15 @@ func handleAdminVisitDetail(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// 今月の 5 回目以降の来店がすべて paid=1 かどうか
-func isAllDueVisitsPaid(lineUserID string) (bool, error) {
+// 指定月(ym="YYYY-MM") の threshold回目以降が全て paid=1 かどうか
+func isAllDueVisitsPaid(lineUserID, ym string, threshold int) (bool, error) {
 	rows, err := db.Query(`
-SELECT 
-  datetime(v.visited_at, 'localtime'),
-  IFNULL(v.paid, 0)
+SELECT IFNULL(v.paid, 0)
 FROM visits v
 WHERE v.line_user_id = ?
-  AND strftime('%Y-%m', v.visited_at, 'localtime')
-      = strftime('%Y-%m', 'now', 'localtime')
+  AND strftime('%Y-%m', v.visited_at, 'localtime') = ?
 ORDER BY v.visited_at ASC;
-`, lineUserID)
+`, lineUserID, ym)
 	if err != nil {
 		return false, err
 	}
@@ -544,13 +544,12 @@ ORDER BY v.visited_at ASC;
 	i := 0
 	for rows.Next() {
 		i++
-		var visitedAtStr string
 		var paidInt int
-		if err := rows.Scan(&visitedAtStr, &paidInt); err != nil {
+		if err := rows.Scan(&paidInt); err != nil {
 			return false, err
 		}
-		// 5回目以降で未払いが1件でもあれば NG
-		if i >= 5 && paidInt == 0 {
+		// threshold回目以降で未払いが1件でもあれば NG
+		if i >= threshold && paidInt == 0 {
 			return false, nil
 		}
 	}
