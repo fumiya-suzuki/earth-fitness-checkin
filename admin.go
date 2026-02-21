@@ -792,6 +792,7 @@ func handleAdminVisitDelete(w http.ResponseWriter, r *http.Request) {
 
 	visitID := r.FormValue("visit_id")
 	lineUserID := r.FormValue("line_user_id")
+	month := r.FormValue("month")
 
 	if visitID == "" || lineUserID == "" {
 		http.Error(w, "bad request", http.StatusBadRequest)
@@ -807,5 +808,8 @@ func handleAdminVisitDelete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	redirectTo := "/admin/visits/user?line_user_id=" + url.QueryEscape(lineUserID)
+	if month != "" {
+		redirectTo += "&month=" + url.QueryEscape(month)
+	}
 	http.Redirect(w, r, redirectTo, http.StatusSeeOther)
 }
