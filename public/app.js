@@ -1,18 +1,23 @@
-let currentUserId = null; 
+let currentUserId = null;
 let currentDisplayName = "";
 const MAX_FALLBACK = 10; // Go側と合わせる
+const host = window.location.hostname;
+const USE_LIFF = host !== "localhost" && host !== "127.0.0.1" && host !== "::1";
 
-const checkinBtn = document.getElementById("checkinBtn"); 
-const checkoutBtn = document.getElementById("checkoutBtn");
+const LOCAL_DEV_USER = {
+  userId: "local-dev-user",
+  displayName: "Local Dev",
+};
 
-function showCheckinButton() { 
-  checkinBtn.style.display = "inline-block"; 
-  checkoutBtn.style.display = "none"; 
-}
+const resultEl = document.getElementById("result");
 
-function showCheckoutButton() { 
-  checkinBtn.style.display = "none"; 
-  checkoutBtn.style.display = "inline-block"; 
+function showResultMessage(message, isError = false) {
+  if (!resultEl) {
+    return;
+  }
+  resultEl.textContent = message;
+  resultEl.classList.remove("text-success", "text-danger");
+  resultEl.classList.add(isError ? "text-danger" : "text-success");
 }
 
 // プロフィール取得・表示制御 ------------------------------
@@ -23,21 +28,19 @@ async function ensureProfile(userId) {
   const res = await fetch(`/member/profile?userId=${encodeURIComponent(userId)}`);
   if (!res.ok) {
     console.error("profile get error", res.status);
-    // 失敗したら一旦フォーム出しておく（最悪ここで登録してもらう）
     showProfileForm();
-    return;
+    return false;
   }
 
   const data = await res.json();
 
   if (!data.exists) {
-    // まだフルネーム未登録 → フォームを表示する
     showProfileForm();
-  } else {
-    // 既に登録済み → フォームは隠して、普通にチェックイン UI を有効化
-    hideProfileForm();
-    enableCheckinUI();
+    return false;
   }
+
+  hideProfileForm();
+  return true;
 }
 
 function showProfileForm() {
@@ -49,9 +52,6 @@ function showProfileForm() {
     msg.style.display = "block";
     msg.textContent = "初回利用のため、お名前と会員種別の登録をお願いします。";
   }
-  // プロフィール登録が終わるまではチェックイン系は無効にしておく
-  if (checkinBtn) checkinBtn.disabled = true;
-  if (checkoutBtn) checkoutBtn.disabled = true;
 }
 
 function hideProfileForm() {
@@ -59,11 +59,6 @@ function hideProfileForm() {
   const msg = document.getElementById("profileMessage");
   if (form) form.style.display = "none";
   if (msg) msg.style.display = "none";
-}
-
-function enableCheckinUI() {
-  if (checkinBtn) checkinBtn.disabled = false;
-  if (checkoutBtn) checkoutBtn.disabled = false;
 }
 
 async function submitProfile() {
@@ -89,7 +84,7 @@ async function submitProfile() {
         userId: currentUserId,
         lastName,
         firstName,
-        memberType,      // "general" or "1day"
+        memberType,
         displayName: currentDisplayName,
       }),
     });
@@ -100,10 +95,8 @@ async function submitProfile() {
       return;
     }
 
-    // 成功したらフォームを閉じて、チェックインUIを有効化
     hideProfileForm();
-    enableCheckinUI();
-
+    await autoToggleCheckin();
   } catch (e) {
     console.error(e);
     msg.style.display = "block";
@@ -115,51 +108,102 @@ async function submitProfile() {
 // LIFF 初期化 & チェックイン画面初期化
 // -------------------------------------------------------
 
-async function init() { 
-  await liff.init({ liffId: LIFF_ID });
+async function init() {
+  if (USE_LIFF) {
+    await liff.init({ liffId: LIFF_ID });
 
-  if (!liff.isLoggedIn()) { 
-    liff.login(); 
-    return; 
+    if (!liff.isLoggedIn()) {
+      liff.login();
+      return;
+    }
+
+    const profile = await liff.getProfile();
+    currentUserId = profile.userId;
+    currentDisplayName = profile.displayName;
+  } else {
+    currentUserId = LOCAL_DEV_USER.userId;
+    currentDisplayName = LOCAL_DEV_USER.displayName;
   }
 
-  const profile = await liff.getProfile(); 
-  currentUserId = profile.userId;
-  currentDisplayName = profile.displayName;
+  const profileReady = await ensureProfile(currentUserId);
+  if (!profileReady) {
+    return;
+  }
 
-  // ① プロフィール（フルネーム＆会員種別）を確認
-  await ensureProfile(currentUserId);
+  await autoToggleCheckin();
+}
 
-  // ② 現在の混雑状況＆自分がチェックイン中かどうかを取得
-  try { 
-    const res = await fetch(`/status?userId=${encodeURIComponent(currentUserId)}`);
-    const data = await res.json();
+async function autoToggleCheckin() {
+  try {
+    const statusRes = await fetch(`/status?userId=${encodeURIComponent(currentUserId)}`);
+    const statusData = await statusRes.json();
+    updateCapacityBar(statusData.count, MAX_FALLBACK);
 
-    updateCapacityBar(data.count, MAX_FALLBACK);
+    if (statusData.checkedIn) {
+      if (!statusData.canAutoCheckout) {
+        const remainSec = Number(statusData.autoCheckoutBlockedSeconds || 0);
+        const remainMin = Math.max(1, Math.ceil(remainSec / 60));
+        showResultMessage(`チェックイン中です。チェックアウトは${remainMin}分後に可能です。`);
+        return;
+      }
 
-    if (data.checkedIn) { 
-      showCheckoutButton(); // ← チェックイン済みならチェックアウトだけ 
-    } else {
-      showCheckinButton(); 
+      const checkoutRes = await fetch("/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: currentUserId,
+          displayName: currentDisplayName,
+        }),
+      });
+
+      if (!checkoutRes.ok) {
+        throw new Error(`checkout failed: ${checkoutRes.status}`);
+      }
+
+      const checkoutData = await checkoutRes.json();
+      updateCapacityBar(checkoutData.count, MAX_FALLBACK);
+      showResultMessage("チェックアウトしました。");
+      return;
     }
-  } catch (e) { 
-    console.error(e); 
-    updateCapacityBar(0, MAX_FALLBACK); 
-    // 失敗したらとりあえずチェックインを出す 
-    showCheckinButton(); 
+
+    if (!statusData.canAutoCheckin) {
+      const remainSec = Number(statusData.autoCheckinBlockedSeconds || 0);
+      const remainMin = Math.max(1, Math.ceil(remainSec / 60));
+      showResultMessage(`チェックアウト後のため、チェックインは${remainMin}分後に可能です。`);
+      return;
+    }
+
+    const checkinRes = await fetch("/checkin", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        userId: currentUserId,
+        displayName: currentDisplayName,
+      }),
+    });
+
+    if (!checkinRes.ok) {
+      throw new Error(`checkin failed: ${checkinRes.status}`);
+    }
+
+    const checkinData = await checkinRes.json();
+    updateCapacityBar(checkinData.count, MAX_FALLBACK);
+    showResultMessage("チェックインが完了しました。");
+  } catch (e) {
+    console.error(e);
+    showResultMessage("チェックイン/チェックアウトに失敗しました。", true);
   }
 }
 
-function updateCapacityBar(count, max) { 
-  const realMax = max; 
-  const percent = Math.min(100, Math.round((count / realMax) * 100)); 
-  const fill = document.getElementById("capacityFill"); 
-  const text = document.getElementById("capacityText"); 
-  const icon = document.getElementById("capacityIcon"); 
+function updateCapacityBar(count, max) {
+  const realMax = max;
+  const percent = Math.min(100, Math.round((count / realMax) * 100));
+  const fill = document.getElementById("capacityFill");
+  const text = document.getElementById("capacityText");
+  const icon = document.getElementById("capacityIcon");
   const percentLabel = document.getElementById("capacityPercent");
 
-  // 幅 
-  fill.style.width = percent + "%";
+  fill.style.width = `${percent}%`;
 
   if (percent > 69) {
     fill.style.background = "linear-gradient(90deg, #f43f5e 0%, #e11d48 100%)";
@@ -172,48 +216,10 @@ function updateCapacityBar(count, max) {
     icon.src = "./good.png";
   }
 
-  percentLabel.textContent = percent + "%";
+  percentLabel.textContent = `${percent}%`;
   text.textContent = `混雑度：${count} / ${realMax}（${percent}%）`;
 }
 
-async function callApi(path, label) {
-  const resultEl = document.getElementById("result");
-  const targetBtn = path === '/checkin' ? checkinBtn : checkoutBtn;
-
-  targetBtn.disabled = true;
-
-  try {
-    const res = await fetch(path, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: currentUserId, displayName: currentDisplayName, })
-    });
-    const data = await res.json();
-
-    resultEl.innerText = `✅ ${label} 完了！`;
-    updateCapacityBar(data.count, MAX_FALLBACK);
-
-    if (path === '/checkin') {
-      showCheckoutButton();
-    } else {
-      showCheckinButton();
-    }
-  } catch (e) { 
-    console.error(e); 
-    resultEl.innerText = `⚠ ${label} に失敗しました`;
-  } finally { 
-    // 戻す 
-    targetBtn.disabled = false; 
-    targetBtn.classList.remove('btn-loading'); 
-  } 
-}
-
-// ボタンクリック登録 & 初期化 --------------------------
-
-document.getElementById("checkinBtn").onclick = () => callApi('/checkin', 'チェックイン');
-document.getElementById("checkoutBtn").onclick = () => callApi('/checkout', 'チェックアウト');
-
-// プロフィール登録ボタン
 const profileSubmitBtn = document.getElementById("profileSubmitBtn");
 if (profileSubmitBtn) {
   profileSubmitBtn.addEventListener("click", submitProfile);

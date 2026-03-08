@@ -1,0 +1,61 @@
+{{define "admin_head"}}
+<style>
+  .admin-shell {
+    display: flex;
+    min-height: 100vh;
+  }
+
+  .admin-sidebar {
+    width: 240px;
+    background: #fff;
+    border-right: 1px solid #dee2e6;
+    padding: 16px;
+  }
+
+  .admin-sidebar .list-group-item {
+    border-radius: 8px;
+    margin-bottom: 8px;
+  }
+
+  .admin-main {
+    flex: 1;
+    padding: 24px;
+  }
+
+  @media (max-width: 992px) {
+    .admin-shell {
+      flex-direction: column;
+    }
+
+    .admin-sidebar {
+      width: 100%;
+      border-right: 0;
+      border-bottom: 1px solid #dee2e6;
+    }
+
+    .admin-main {
+      padding: 16px;
+    }
+  }
+</style>
+{{end}}
+
+{{define "admin_sidebar"}}
+<aside class="admin-sidebar">
+  <h2 class="h5 mb-3">管理メニュー</h2>
+  <nav class="list-group">
+    <a href="/admin/visits" class="list-group-item list-group-item-action {{if eq .ActivePage "visits"}}active{{end}}">
+      今月の来店一覧
+    </a>
+    <a href="/admin/visits/today" class="list-group-item list-group-item-action {{if eq .ActivePage "today"}}active{{end}}">
+      本日の来店者一覧
+    </a>
+    <a href="/admin/visits/calendar" class="list-group-item list-group-item-action {{if eq .ActivePage "calendar"}}active{{end}}">
+      来店カレンダー
+    </a>
+    <a href="/admin/members" class="list-group-item list-group-item-action {{if eq .ActivePage "members"}}active{{end}}">
+      会員一覧
+    </a>
+  </nav>
+</aside>
+{{end}}

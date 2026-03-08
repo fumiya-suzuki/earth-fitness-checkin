@@ -81,14 +81,16 @@ func handleStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// ここで期限切れも掃除されるようにしておく
-	checked := isCheckedIn(userID)
-	count := getCurrentCount()
+	status := getAutoToggleStatus(userID)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"checkedIn": checked,
-		"count":     count,
-		"max":       getMaxPeople(),
+		"checkedIn":                  status.CheckedIn,
+		"count":                      status.Count,
+		"max":                        status.Max,
+		"canAutoCheckout":            status.CanAutoCheckout,
+		"canAutoCheckin":             status.CanAutoCheckin,
+		"autoCheckoutBlockedSeconds": status.AutoCheckoutBlockedSeconds,
+		"autoCheckinBlockedSeconds":  status.AutoCheckinBlockedSeconds,
 	})
 }

@@ -8,8 +8,8 @@ import (
 
 // フロントから来るJSONの形
 type checkinRequest struct {
-	UserID string `json:"userId"`
-	DisplayName  string `json:"displayName"`
+	UserID      string `json:"userId"`
+	DisplayName string `json:"displayName"`
 }
 
 // チェックインしたときの情報
@@ -19,10 +19,13 @@ type checkinInfo struct {
 
 // メモリ上でチェックインを管理する
 var (
-	mu             sync.Mutex
-	checkedInUsers = make(map[string]checkinInfo)
-	maxPeople      = 10			   // Max定員10人（Jsと合わせる）
-	expireAfter    = 90 * time.Minute // 1.5時間で自動的に無効とみなす
+	mu                   sync.Mutex
+	checkedInUsers       = make(map[string]checkinInfo)
+	lastCheckoutAtByUser = make(map[string]time.Time)
+	maxPeople            = 10 // Max定員10人（Jsと合わせる）
+	expireAfter          = 90 * time.Minute
+	autoCheckoutBlockFor = 10 * time.Minute
+	autoCheckinBlockFor  = 30 * time.Minute
 )
 
 // 期限切れの人を消す共通処理
@@ -42,6 +45,7 @@ func addCheckin(userID string) int {
 	cleanupExpiredLocked(time.Now())
 
 	checkedInUsers[userID] = checkinInfo{At: time.Now()}
+	delete(lastCheckoutAtByUser, userID)
 	return len(checkedInUsers)
 }
 
@@ -50,7 +54,10 @@ func removeCheckin(userID string) int {
 	mu.Lock()
 	defer mu.Unlock()
 
-	delete(checkedInUsers, userID)
+	if _, ok := checkedInUsers[userID]; ok {
+		delete(checkedInUsers, userID)
+		lastCheckoutAtByUser[userID] = time.Now()
+	}
 	return len(checkedInUsers)
 }
 
@@ -79,6 +86,66 @@ func isCheckedIn(userID string) bool {
 
 	_, ok := checkedInUsers[userID]
 	return ok
+}
+
+type autoToggleStatus struct {
+	CheckedIn                  bool
+	Count                      int
+	Max                        int
+	CanAutoCheckout            bool
+	CanAutoCheckin             bool
+	AutoCheckoutBlockedSeconds int
+	AutoCheckinBlockedSeconds  int
+}
+
+func getAutoToggleStatus(userID string) autoToggleStatus {
+	mu.Lock()
+	defer mu.Unlock()
+
+	now := time.Now()
+	cleanupExpiredLocked(now)
+
+	status := autoToggleStatus{
+		Count: len(checkedInUsers),
+		Max:   maxPeople,
+	}
+
+	info, checkedIn := checkedInUsers[userID]
+	status.CheckedIn = checkedIn
+
+	if checkedIn {
+		elapsed := now.Sub(info.At)
+		if elapsed >= autoCheckoutBlockFor {
+			status.CanAutoCheckout = true
+		} else {
+			status.CanAutoCheckout = false
+			status.AutoCheckoutBlockedSeconds = int((autoCheckoutBlockFor - elapsed).Seconds())
+			if status.AutoCheckoutBlockedSeconds < 0 {
+				status.AutoCheckoutBlockedSeconds = 0
+			}
+		}
+		status.CanAutoCheckin = false
+		return status
+	}
+
+	lastCheckoutAt, hasLastCheckout := lastCheckoutAtByUser[userID]
+	if !hasLastCheckout {
+		status.CanAutoCheckin = true
+		return status
+	}
+
+	elapsed := now.Sub(lastCheckoutAt)
+	if elapsed >= autoCheckinBlockFor {
+		status.CanAutoCheckin = true
+	} else {
+		status.CanAutoCheckin = false
+		status.AutoCheckinBlockedSeconds = int((autoCheckinBlockFor - elapsed).Seconds())
+		if status.AutoCheckinBlockedSeconds < 0 {
+			status.AutoCheckinBlockedSeconds = 0
+		}
+	}
+
+	return status
 }
 
 // visitを記録する（チェックイン時に呼ぶ）
@@ -124,4 +191,3 @@ func recordVisit(lineUserID, displayName string) (err error) {
 
 	return tx.Commit()
 }
-

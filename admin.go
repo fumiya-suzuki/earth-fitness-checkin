@@ -2,14 +2,14 @@
 package main
 
 import (
+	"fmt"
 	"html/template"
 	"log"
 	"net/http"
-	"path/filepath"
-	"time"
 	"net/url"
-	"fmt"
+	"path/filepath"
 	"strings"
+	"time"
 )
 
 // 1人分の集計結果
@@ -28,23 +28,26 @@ var funcMap = template.FuncMap{
 	"add": func(a, b int) int { return a + b },
 }
 
-var adminVisitsTmpl = template.Must(
-	template.New("admin_visits.html").
-		Funcs(funcMap).
-		ParseFiles(filepath.Join("public", "admin_visits.html")),
-)
+func mustParseAdminTemplate(file string) *template.Template {
+	return template.Must(
+		template.New(file).
+			Funcs(funcMap).
+			ParseFiles(
+				filepath.Join("public", file),
+				filepath.Join("public", "admin_common.html"),
+			),
+	)
+}
 
-var adminVisitsTodayTmpl = template.Must(
-	template.New("admin_visits_today.html").
-		Funcs(funcMap).
-		ParseFiles(filepath.Join("public", "admin_visits_today.html")),
-)
+var adminVisitsTmpl = mustParseAdminTemplate("admin_visits.html")
 
-var adminVisitDetailTmpl = template.Must(
-	template.New("admin_visit_detail.html").
-		Funcs(funcMap).
-		ParseFiles(filepath.Join("public", "admin_visit_detail.html")),
-)
+var adminVisitsTodayTmpl = mustParseAdminTemplate("admin_visits_today.html")
+
+var adminVisitDetailTmpl = mustParseAdminTemplate("admin_visit_detail.html")
+
+var adminVisitsCalendarTmpl = mustParseAdminTemplate("admin_visits_calendar.html")
+
+var adminVisitsDayTmpl = mustParseAdminTemplate("admin_visits_day.html")
 
 // 今月分の集計を取得（フィルタ付き）
 func getMonthlySummaries(year int, month int, filterText, filterType string) ([]VisitSummary, error) {
@@ -75,9 +78,9 @@ WHERE strftime('%Y-%m', v.visited_at, 'localtime') = ?
 	if filterText != "" {
 		like := "%" + filterText + "%"
 		where = append(where,
-			"(IFNULL(m.display_name,'') LIKE ? OR " +
-				"IFNULL(m.full_name,'') LIKE ? OR " +
-				"IFNULL(m.poster_id,'') LIKE ? OR " +
+			"(IFNULL(m.display_name,'') LIKE ? OR "+
+				"IFNULL(m.full_name,'') LIKE ? OR "+
+				"IFNULL(m.poster_id,'') LIKE ? OR "+
 				"v.line_user_id LIKE ?)",
 		)
 		args = append(args, like, like, like, like)
@@ -211,11 +214,295 @@ ORDER BY
 	return list, rows.Err()
 }
 
+type CalendarDay struct {
+	Day       int
+	DateISO   string
+	Count     int
+	InMonth   bool
+	Weekday   int
+	IsToday   bool
+	DetailURL string
+}
+
+type CalendarWeek struct {
+	Days []CalendarDay
+}
+
+type DailyVisitor struct {
+	LineUserID   string
+	DisplayName  string
+	FullName     string
+	MemberType   string
+	PosterID     string
+	FirstVisitAt string
+	MonthlyCount int
+}
+
+func getCalendarBaseMonth(mode string) time.Time {
+	base := time.Now()
+	if mode == "prev" {
+		base = base.AddDate(0, -1, 0)
+	}
+	return time.Date(base.Year(), base.Month(), 1, 0, 0, 0, 0, time.Local)
+}
+
+func getMonthlyDailyVisitorCounts(monthKey string) (map[int]int, int, error) {
+	rows, err := db.Query(`
+SELECT
+  CAST(strftime('%d', v.visited_at, 'localtime') AS INTEGER) AS day_num,
+  COUNT(DISTINCT v.line_user_id) AS cnt
+FROM visits v
+WHERE strftime('%Y-%m', v.visited_at, 'localtime') = ?
+GROUP BY day_num
+ORDER BY day_num;
+`, monthKey)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	counts := make(map[int]int)
+	for rows.Next() {
+		var day int
+		var cnt int
+		if err := rows.Scan(&day, &cnt); err != nil {
+			return nil, 0, err
+		}
+		counts[day] = cnt
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, err
+	}
+
+	var monthlyTotal int
+	if err := db.QueryRow(`
+SELECT COUNT(DISTINCT v.line_user_id)
+FROM visits v
+WHERE strftime('%Y-%m', v.visited_at, 'localtime') = ?;
+`, monthKey).Scan(&monthlyTotal); err != nil {
+		return nil, 0, err
+	}
+
+	return counts, monthlyTotal, nil
+}
+
+func buildCalendarWeeks(base time.Time, dailyCounts map[int]int, isPrev bool) []CalendarWeek {
+	year, month, _ := base.Date()
+	firstDay := time.Date(year, month, 1, 0, 0, 0, 0, time.Local)
+	startOffset := int(firstDay.Weekday()) // Sunday=0
+	daysInMonth := time.Date(year, month+1, 0, 0, 0, 0, 0, time.Local).Day()
+	today := time.Now()
+
+	var cells []CalendarDay
+	for i := 0; i < startOffset; i++ {
+		cells = append(cells, CalendarDay{InMonth: false, Weekday: i})
+	}
+
+	for day := 1; day <= daysInMonth; day++ {
+		date := time.Date(year, month, day, 0, 0, 0, 0, time.Local)
+		dateISO := date.Format("2006-01-02")
+
+		detailURL := "/admin/visits/day?date=" + url.QueryEscape(dateISO)
+		if isPrev {
+			detailURL += "&mode=prev"
+		}
+
+		cells = append(cells, CalendarDay{
+			Day:       day,
+			DateISO:   dateISO,
+			Count:     dailyCounts[day],
+			InMonth:   true,
+			Weekday:   int(date.Weekday()),
+			IsToday:   date.Year() == today.Year() && date.Month() == today.Month() && date.Day() == today.Day(),
+			DetailURL: detailURL,
+		})
+	}
+
+	for len(cells)%7 != 0 {
+		cells = append(cells, CalendarDay{InMonth: false})
+	}
+
+	weeks := make([]CalendarWeek, 0, len(cells)/7)
+	for i := 0; i < len(cells); i += 7 {
+		weeks = append(weeks, CalendarWeek{
+			Days: cells[i : i+7],
+		})
+	}
+
+	return weeks
+}
+
+// GET /admin/visits/calendar
+func handleAdminVisitsCalendar(w http.ResponseWriter, r *http.Request) {
+	mode := r.URL.Query().Get("mode")
+	if mode != "" && mode != "prev" {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+
+	base := getCalendarBaseMonth(mode)
+	monthKey := base.Format("2006-01")
+	monthLabel := base.Format("2006年1月")
+
+	dailyCounts, monthlyTotal, err := getMonthlyDailyVisitorCounts(monthKey)
+	if err != nil {
+		log.Println("getMonthlyDailyVisitorCounts error:", err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	data := struct {
+		MonthLabel   string
+		MonthKey     string
+		Mode         string
+		IsPrev       bool
+		ActivePage   string
+		MonthlyTotal int
+		Weeks        []CalendarWeek
+	}{
+		MonthLabel:   monthLabel,
+		MonthKey:     monthKey,
+		Mode:         mode,
+		IsPrev:       mode == "prev",
+		ActivePage:   "calendar",
+		MonthlyTotal: monthlyTotal,
+		Weeks:        buildCalendarWeeks(base, dailyCounts, mode == "prev"),
+	}
+
+	if err := adminVisitsCalendarTmpl.Execute(w, data); err != nil {
+		log.Println("template execute error:", err)
+	}
+}
+
+func isAllowedCalendarDate(target time.Time) bool {
+	now := time.Now()
+	current := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.Local)
+	prev := current.AddDate(0, -1, 0)
+
+	targetMonth := time.Date(target.Year(), target.Month(), 1, 0, 0, 0, 0, time.Local)
+	return targetMonth.Equal(current) || targetMonth.Equal(prev)
+}
+
+func getDailyVisitors(dateISO, monthKey string) ([]DailyVisitor, error) {
+	rows, err := db.Query(`
+SELECT
+  v.line_user_id,
+  IFNULL(m.display_name, ''),
+  IFNULL(m.full_name, ''),
+  IFNULL(m.member_type, 'general'),
+  IFNULL(m.poster_id, ''),
+  MIN(strftime('%H:%M', v.visited_at, 'localtime')) AS first_visit_at,
+  (
+    SELECT COUNT(*)
+    FROM visits vm
+    WHERE vm.line_user_id = v.line_user_id
+      AND strftime('%Y-%m', vm.visited_at, 'localtime') = ?
+  ) AS monthly_count
+FROM visits v
+LEFT JOIN members m ON m.line_user_id = v.line_user_id
+WHERE date(v.visited_at, 'localtime') = ?
+GROUP BY
+  v.line_user_id,
+  m.display_name,
+  m.full_name,
+  m.member_type,
+  m.poster_id
+ORDER BY first_visit_at ASC, m.full_name, m.display_name;
+`, monthKey, dateISO)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var visitors []DailyVisitor
+	for rows.Next() {
+		var v DailyVisitor
+		if err := rows.Scan(
+			&v.LineUserID,
+			&v.DisplayName,
+			&v.FullName,
+			&v.MemberType,
+			&v.PosterID,
+			&v.FirstVisitAt,
+			&v.MonthlyCount,
+		); err != nil {
+			return nil, err
+		}
+		visitors = append(visitors, v)
+	}
+	return visitors, rows.Err()
+}
+
+// GET /admin/visits/day?date=YYYY-MM-DD
+func handleAdminVisitsDay(w http.ResponseWriter, r *http.Request) {
+	mode := r.URL.Query().Get("mode")
+	if mode != "" && mode != "prev" {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+
+	dateISO := r.URL.Query().Get("date")
+	if dateISO == "" {
+		http.Error(w, "date is required", http.StatusBadRequest)
+		return
+	}
+
+	targetDate, err := time.ParseInLocation("2006-01-02", dateISO, time.Local)
+	if err != nil {
+		http.Error(w, "bad date", http.StatusBadRequest)
+		return
+	}
+	if !isAllowedCalendarDate(targetDate) {
+		http.Error(w, "date out of range", http.StatusBadRequest)
+		return
+	}
+
+	monthKey := targetDate.Format("2006-01")
+
+	visitors, err := getDailyVisitors(dateISO, monthKey)
+	if err != nil {
+		log.Println("getDailyVisitors error:", err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	backURL := "/admin/visits/calendar"
+	if mode == "prev" {
+		backURL += "?mode=prev"
+	}
+
+	data := struct {
+		DateISO    string
+		DateLabel  string
+		MonthKey   string
+		Mode       string
+		IsPrev     bool
+		ActivePage string
+		BackURL    string
+		TotalUsers int
+		Visitors   []DailyVisitor
+	}{
+		DateISO:    dateISO,
+		DateLabel:  targetDate.Format("2006年1月2日"),
+		MonthKey:   monthKey,
+		Mode:       mode,
+		IsPrev:     mode == "prev",
+		ActivePage: "calendar",
+		BackURL:    backURL,
+		TotalUsers: len(visitors),
+		Visitors:   visitors,
+	}
+
+	if err := adminVisitsDayTmpl.Execute(w, data); err != nil {
+		log.Println("template execute error:", err)
+	}
+}
+
 // 今月・前月一覧
 func handleAdminVisits(w http.ResponseWriter, r *http.Request) {
 	mode := r.URL.Query().Get("mode")
-	q := r.URL.Query().Get("q")                     // フィルタ文字列
-	memberType := r.URL.Query().Get("member_type")  // "general" / "1day" / ""
+	q := r.URL.Query().Get("q")                    // フィルタ文字列
+	memberType := r.URL.Query().Get("member_type") // "general" / "1day" / ""
 
 	base := time.Now()
 	if mode == "prev" {
@@ -224,7 +511,7 @@ func handleAdminVisits(w http.ResponseWriter, r *http.Request) {
 
 	// この月のラベル & キー
 	monthLabel := base.Format("2006年1月") // 例: 2025年10月
-	monthKey := base.Format("2006-01")    // 例: 2025-10（SQL用）
+	monthKey := base.Format("2006-01")   // 例: 2025-10（SQL用）
 
 	year, m, _ := base.Date()
 	summaries, err := getMonthlySummaries(year, int(m), q, memberType)
@@ -237,7 +524,7 @@ func handleAdminVisits(w http.ResponseWriter, r *http.Request) {
 	successMsg := r.URL.Query().Get("success_msg")
 
 	isFiltered := strings.TrimSpace(q) != "" ||
-        memberType == "general" || memberType == "1day"
+		memberType == "general" || memberType == "1day"
 
 	data := struct {
 		Summaries        []VisitSummary
@@ -246,6 +533,7 @@ func handleAdminVisits(w http.ResponseWriter, r *http.Request) {
 		Mode             string
 		IsPrev           bool
 		IsCurrent        bool
+		ActivePage       string
 		SuccessMsg       string
 		Q                string
 		MemberTypeFilter string
@@ -257,6 +545,7 @@ func handleAdminVisits(w http.ResponseWriter, r *http.Request) {
 		Mode:             mode,
 		IsPrev:           mode == "prev",
 		IsCurrent:        mode != "prev",
+		ActivePage:       "visits",
 		SuccessMsg:       successMsg,
 		Q:                q,
 		MemberTypeFilter: memberType,
@@ -284,10 +573,12 @@ func handleAdminVisitsToday(w http.ResponseWriter, r *http.Request) {
 	data := struct {
 		Summaries  []VisitSummary
 		DateLabel  string
+		ActivePage string
 		SuccessMsg string
 	}{
 		Summaries:  summaries,
 		DateLabel:  dateLabel,
+		ActivePage: "today",
 		SuccessMsg: successMsg,
 	}
 
@@ -404,14 +695,15 @@ type VisitRecord struct {
 }
 
 type VisitDetail struct {
-	LineUserID string
-	PosterID   string
+	LineUserID  string
+	PosterID    string
 	DisplayName string
 	FullName    string
 	MemberType  string
 	MonthLabel  string
 	MonthKey    string
 	IsPrev      bool
+	ActivePage  string
 	Count       int
 	Visits      []VisitRecord
 }
@@ -432,7 +724,7 @@ func getUserMonthlyVisitDetail(lineUserID, ym string) (*VisitDetail, error) {
 	}
 
 	monthLabel := base.Format("2006年1月") // 画面用
-	monthKey := base.Format("2006-01")    // SQL用 "YYYY-MM"
+	monthKey := base.Format("2006-01")   // SQL用 "YYYY-MM"
 
 	// ここで「前月かどうか」を判定
 	now := time.Now()
@@ -444,6 +736,7 @@ func getUserMonthlyVisitDetail(lineUserID, ym string) (*VisitDetail, error) {
 		MonthLabel: monthLabel,
 		MonthKey:   monthKey,
 		IsPrev:     isPrev,
+		ActivePage: "visits",
 	}
 
 	rows, err := db.Query(`
@@ -612,13 +905,9 @@ type MemberSummary struct {
 	MonthlyCount int
 }
 
-var adminMembersTmpl = template.Must(
-	template.New("admin_members.html").
-		Funcs(funcMap).
-		ParseFiles(filepath.Join("public", "admin_members.html")),
-)
+var adminMembersTmpl = mustParseAdminTemplate("admin_members.html")
 
-// 会員一覧 + 今月の来店回数（フィルタ付き）
+// 会員一覧 + 月間の来店回数（フィルタ付き）
 func getMemberSummaries(filterText, filterType string) ([]MemberSummary, error) {
 	baseSQL := `
 SELECT
@@ -651,9 +940,9 @@ LEFT JOIN visits v ON v.line_user_id = m.line_user_id
 	if filterText != "" {
 		like := "%" + filterText + "%"
 		where = append(where,
-			"(IFNULL(m.display_name,'') LIKE ? OR " +
-				"IFNULL(m.full_name,'') LIKE ? OR " +
-				"IFNULL(m.poster_id,'') LIKE ? OR " +
+			"(IFNULL(m.display_name,'') LIKE ? OR "+
+				"IFNULL(m.full_name,'') LIKE ? OR "+
+				"IFNULL(m.poster_id,'') LIKE ? OR "+
 				"m.line_user_id LIKE ?)",
 		)
 		args = append(args, like, like, like, like)
@@ -713,16 +1002,18 @@ func handleAdminMembers(w http.ResponseWriter, r *http.Request) {
 	successMsg := r.URL.Query().Get("success_msg")
 
 	isFiltered := strings.TrimSpace(q) != "" ||
-        memberType == "general" || memberType == "1day"
+		memberType == "general" || memberType == "1day"
 
 	data := struct {
 		Members          []MemberSummary
+		ActivePage       string
 		SuccessMsg       string
 		Q                string
 		MemberTypeFilter string
 		IsFiltered       bool
 	}{
 		Members:          members,
+		ActivePage:       "members",
 		SuccessMsg:       successMsg,
 		Q:                q,
 		MemberTypeFilter: memberType,
