@@ -25,6 +25,8 @@ const (
 	logTimestampField = "timestamp"
 )
 
+var jst = time.FixedZone("Asia/Tokyo", 9*60*60)
+
 type eventFields map[string]interface{}
 
 type appLogger struct {
@@ -41,7 +43,7 @@ func newAppLogger() *appLogger {
 }
 
 func (l *appLogger) ensureWriter(now time.Time) *os.File {
-	day := now.Format("2006-01-02")
+	day := now.In(jst).Format("2006-01-02")
 
 	if l.file != nil && l.currentDay == day {
 		return l.file
@@ -70,7 +72,7 @@ func (l *appLogger) ensureWriter(now time.Time) *os.File {
 }
 
 func (l *appLogger) write(level, event string, fields eventFields) {
-	now := time.Now()
+	now := time.Now().In(jst)
 	record := map[string]interface{}{
 		logTimestampField: now.Format(time.RFC3339),
 		"level":           level,
@@ -121,7 +123,7 @@ func (l *appLogger) cleanupOldFiles(now time.Time) {
 		return
 	}
 
-	cutoff := now.AddDate(0, 0, -logRetentionDays)
+	cutoff := now.In(jst).AddDate(0, 0, -logRetentionDays)
 	for _, entry := range entries {
 		if entry.IsDir() {
 			continue
