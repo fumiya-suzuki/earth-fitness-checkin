@@ -7,37 +7,43 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 )
 
 func main() {
 
 	initDB()
 	startVisitsCleanupJob()
+	appLog.cleanupOldFiles(time.Now())
 
 	publicDir := filepath.Join(".", "public")
 	fs := http.FileServer(http.Dir(publicDir))
-	http.Handle("/", fs)
+	http.Handle("/", withRequestID(fs))
 
 	// APIハンドラ登録
-	http.HandleFunc("/checkin", handleCheckin)
-	http.HandleFunc("/checkout", handleCheckout)
+	handle := func(pattern string, fn http.HandlerFunc) {
+		http.Handle(pattern, withRequestID(http.HandlerFunc(fn)))
+	}
 
-	http.HandleFunc("/count-json", handleCountJSON)
-	http.HandleFunc("/status", handleStatus)
+	handle("/checkin", handleCheckin)
+	handle("/checkout", handleCheckout)
+
+	handle("/count-json", handleCountJSON)
+	handle("/status", handleStatus)
 
 	// 管理画面
-	http.HandleFunc("/admin/visits", handleAdminVisits)
-	http.HandleFunc("/admin/visits/today", handleAdminVisitsToday)
-	http.HandleFunc("/admin/visits/calendar", handleAdminVisitsCalendar)
-	http.HandleFunc("/admin/visits/day", handleAdminVisitsDay)
-	http.HandleFunc("/admin/visits/user", handleAdminVisitDetail)
-	http.HandleFunc("/admin/member/type", handleAdminUpdateMemberType)
-	http.HandleFunc("/admin/member/poster-id", handleAdminUpdatePosterID)
-	http.HandleFunc("/admin/visits/pay", handleAdminVisitPay)
-	http.HandleFunc("/admin/visits/add", handleAdminVisitAdd)
-	http.HandleFunc("/admin/visits/delete", handleAdminVisitDelete)
-	http.HandleFunc("/admin/members", handleAdminMembers)
-	http.HandleFunc("/member/profile", handleMemberProfile)
+	handle("/admin/visits", handleAdminVisits)
+	handle("/admin/visits/today", handleAdminVisitsToday)
+	handle("/admin/visits/calendar", handleAdminVisitsCalendar)
+	handle("/admin/visits/day", handleAdminVisitsDay)
+	handle("/admin/visits/user", handleAdminVisitDetail)
+	handle("/admin/member/type", handleAdminUpdateMemberType)
+	handle("/admin/member/poster-id", handleAdminUpdatePosterID)
+	handle("/admin/visits/pay", handleAdminVisitPay)
+	handle("/admin/visits/add", handleAdminVisitAdd)
+	handle("/admin/visits/delete", handleAdminVisitDelete)
+	handle("/admin/members", handleAdminMembers)
+	handle("/member/profile", handleMemberProfile)
 
 	// ポート設定
 	port := os.Getenv("PORT")
@@ -63,6 +69,7 @@ type memberProfileRequest struct {
 // GET /member/profile?userId=xxx
 // POST /member/profile
 func handleMemberProfile(w http.ResponseWriter, r *http.Request) {
+	appLog.info("profile_request_received", eventFieldsFromRequest(r))
 	switch r.Method {
 	case http.MethodGet:
 		handleMemberProfileGet(w, r)
@@ -75,11 +82,16 @@ func handleMemberProfile(w http.ResponseWriter, r *http.Request) {
 
 // GET: プロファイル取得
 func handleMemberProfileGet(w http.ResponseWriter, r *http.Request) {
+	fields := eventFieldsFromRequest(r)
 	userID := r.URL.Query().Get("userId")
 	if userID == "" {
+		fields["status"] = http.StatusBadRequest
+		fields["error"] = "userId is required"
+		appLog.error("request_error", fields)
 		http.Error(w, "userId is required", http.StatusBadRequest)
 		return
 	}
+	fields["line_user_id"] = userID
 
 	var (
 		fullName   string
@@ -97,16 +109,25 @@ func handleMemberProfileGet(w http.ResponseWriter, r *http.Request) {
 
 	if err == sql.ErrNoRows || fullName == "" {
 		// レコードがない or full_name が空 → 未登録扱い
+		fields["exists"] = false
+		fields["full_name_empty"] = fullName == ""
+		appLog.info("profile_lookup", fields)
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"exists": false,
 		})
 		return
 	}
 	if err != nil {
+		fields["operation"] = "select_member_profile"
+		fields["error"] = err.Error()
+		appLog.error("db_error", fields)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 
+	fields["exists"] = true
+	fields["member_type"] = memberType
+	appLog.info("profile_lookup", fields)
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"exists":     true,
 		"fullName":   fullName,
@@ -116,17 +137,31 @@ func handleMemberProfileGet(w http.ResponseWriter, r *http.Request) {
 
 // POST: プロファイル登録/更新
 func handleMemberProfilePost(w http.ResponseWriter, r *http.Request) {
+	fields := eventFieldsFromRequest(r)
 	var req memberProfileRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		fields["status"] = http.StatusBadRequest
+		fields["error"] = "bad request"
+		appLog.error("request_error", fields)
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
+	fields["line_user_id"] = req.UserID
+	fields["display_name"] = req.DisplayName
+	fields["member_type"] = req.MemberType
+	appLog.info("profile_register_attempt", fields)
 
 	if req.UserID == "" || req.LastName == "" || req.FirstName == "" {
+		fields["status"] = http.StatusBadRequest
+		fields["error"] = "missing required profile fields"
+		appLog.error("request_error", fields)
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
 	if req.MemberType != "general" && req.MemberType != "1day" {
+		fields["status"] = http.StatusBadRequest
+		fields["error"] = "bad memberType"
+		appLog.error("request_error", fields)
 		http.Error(w, "bad memberType", http.StatusBadRequest)
 		return
 	}
@@ -141,6 +176,9 @@ func handleMemberProfilePost(w http.ResponseWriter, r *http.Request) {
 		fullName, req.MemberType, req.DisplayName, req.UserID,
 	)
 	if err != nil {
+		fields["operation"] = "update_member_profile"
+		fields["error"] = err.Error()
+		appLog.error("db_error", fields)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
@@ -155,6 +193,9 @@ func handleMemberProfilePost(w http.ResponseWriter, r *http.Request) {
 			req.UserID, req.DisplayName, fullName, req.MemberType,
 		)
 		if err != nil {
+			fields["operation"] = "insert_member_profile"
+			fields["error"] = err.Error()
+			appLog.error("db_error", fields)
 			http.Error(w, "internal server error", http.StatusInternalServerError)
 			return
 		}
@@ -162,4 +203,9 @@ func handleMemberProfilePost(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]bool{"ok": true})
+	successFields := eventFieldsFromRequest(r)
+	successFields["line_user_id"] = req.UserID
+	successFields["display_name"] = req.DisplayName
+	successFields["member_type"] = req.MemberType
+	appLog.info("profile_register_success", successFields)
 }

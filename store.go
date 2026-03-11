@@ -33,6 +33,14 @@ func cleanupExpiredLocked(now time.Time) {
 	for id, info := range checkedInUsers {
 		if now.Sub(info.At) > expireAfter {
 			delete(checkedInUsers, id)
+			appLog.info("checkin_expired_cleanup", eventFields{
+				"line_user_id":       id,
+				"checked_in_at":      info.At.Format(time.RFC3339),
+				"expired_after_min":  int(expireAfter / time.Minute),
+				"cleaned_up_at":      now.Format(time.RFC3339),
+				"cleanup_reason":     "expired_session",
+				"remaining_checkedin": len(checkedInUsers),
+			})
 		}
 	}
 }
@@ -57,6 +65,10 @@ func removeCheckin(userID string) int {
 	if _, ok := checkedInUsers[userID]; ok {
 		delete(checkedInUsers, userID)
 		lastCheckoutAtByUser[userID] = time.Now()
+	} else {
+		appLog.info("checkout_without_active_checkin", eventFields{
+			"line_user_id": userID,
+		})
 	}
 	return len(checkedInUsers)
 }
@@ -177,6 +189,11 @@ func recordVisit(lineUserID, displayName string) (err error) {
          DO UPDATE SET display_name = excluded.display_name`,
 		lineUserID, displayName, visitedAt,
 	); err != nil {
+		appLog.error("db_error", eventFields{
+			"line_user_id": lineUserID,
+			"operation":    "upsert_member_on_visit",
+			"error":        err.Error(),
+		})
 		return err
 	}
 
@@ -186,6 +203,11 @@ func recordVisit(lineUserID, displayName string) (err error) {
          VALUES(?, ?, 0)`,
 		lineUserID, visitedAt,
 	); err != nil {
+		appLog.error("db_error", eventFields{
+			"line_user_id": lineUserID,
+			"operation":    "insert_visit",
+			"error":        err.Error(),
+		})
 		return err
 	}
 
