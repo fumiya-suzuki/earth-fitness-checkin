@@ -54,17 +54,17 @@ func getMonthlySummaries(year int, month int, filterText, filterType string) ([]
 	ym := fmt.Sprintf("%04d-%02d", year, month)
 
 	baseSQL := `
-SELECT 
-  v.line_user_id,
+	SELECT 
+	  v.line_user_id,
   IFNULL(m.display_name, ''),
   IFNULL(m.full_name, ''), 
   IFNULL(m.member_type, 'general'),
   IFNULL(m.poster_id, ''),
   COUNT(v.id) as cnt
-FROM visits v
-LEFT JOIN members m ON m.line_user_id = v.line_user_id
-WHERE strftime('%Y-%m', v.visited_at, 'localtime') = ?
-`
+	FROM visits v
+	LEFT JOIN members m ON m.line_user_id = v.line_user_id
+	WHERE strftime('%Y-%m', v.visited_at) = ?
+	`
 	args := []interface{}{ym}
 	var where []string
 
@@ -140,13 +140,17 @@ WHERE strftime('%Y-%m', v.visited_at, 'localtime') = ?
 
 // 今日分の集計を取得
 func getTodaySummaries() ([]VisitSummary, error) {
+	now := jstNow()
+	monthKey := formatJSTMonth(now)
+	todayDate := formatJSTDate(now)
+
 	rows, err := db.Query(`
 WITH monthly AS (
   SELECT
     v.line_user_id,
     COUNT(*) AS monthly_cnt
   FROM visits v
-  WHERE strftime('%Y-%m', v.visited_at, 'localtime') = strftime('%Y-%m', 'now', 'localtime')
+  WHERE strftime('%Y-%m', v.visited_at) = ?
   GROUP BY v.line_user_id
 )
 SELECT 
@@ -161,7 +165,7 @@ LEFT JOIN members m
   ON m.line_user_id = v.line_user_id
 LEFT JOIN monthly
   ON monthly.line_user_id = v.line_user_id
-WHERE date(v.visited_at, 'localtime') = date('now', 'localtime')
+WHERE date(v.visited_at) = ?
 GROUP BY
   v.line_user_id,
   m.display_name,
@@ -173,7 +177,7 @@ ORDER BY
   cnt DESC,
   m.full_name,
   m.display_name;
-`)
+	`, monthKey, todayDate)
 	if err != nil {
 		return nil, err
 	}
@@ -196,7 +200,7 @@ ORDER BY
 		s.HighlightRed = false
 		s.HighlightGreen = false
 
-		ym := time.Now().Format("2006-01")
+		ym := monthKey
 		threshold := 5
 		if s.MemberType == "1day" && s.Count >= threshold {
 			allPaid, err := isAllDueVisitsPaid(s.LineUserID, ym, threshold)
@@ -239,20 +243,20 @@ type DailyVisitor struct {
 }
 
 func getCalendarBaseMonth(mode string) time.Time {
-	base := time.Now()
+	base := jstNow()
 	if mode == "prev" {
 		base = base.AddDate(0, -1, 0)
 	}
-	return time.Date(base.Year(), base.Month(), 1, 0, 0, 0, 0, time.Local)
+	return time.Date(base.Year(), base.Month(), 1, 0, 0, 0, 0, jst)
 }
 
 func getMonthlyDailyVisitorCounts(monthKey string) (map[int]int, int, error) {
 	rows, err := db.Query(`
 SELECT
-  CAST(strftime('%d', v.visited_at, 'localtime') AS INTEGER) AS day_num,
+  CAST(strftime('%d', v.visited_at) AS INTEGER) AS day_num,
   COUNT(DISTINCT v.line_user_id) AS cnt
 FROM visits v
-WHERE strftime('%Y-%m', v.visited_at, 'localtime') = ?
+WHERE strftime('%Y-%m', v.visited_at) = ?
 GROUP BY day_num
 ORDER BY day_num;
 `, monthKey)
@@ -278,8 +282,8 @@ ORDER BY day_num;
 	if err := db.QueryRow(`
 SELECT COUNT(DISTINCT v.line_user_id)
 FROM visits v
-WHERE strftime('%Y-%m', v.visited_at, 'localtime') = ?;
-`, monthKey).Scan(&monthlyTotal); err != nil {
+WHERE strftime('%Y-%m', v.visited_at) = ?;
+	`, monthKey).Scan(&monthlyTotal); err != nil {
 		return nil, 0, err
 	}
 
@@ -288,10 +292,10 @@ WHERE strftime('%Y-%m', v.visited_at, 'localtime') = ?;
 
 func buildCalendarWeeks(base time.Time, dailyCounts map[int]int, isPrev bool) []CalendarWeek {
 	year, month, _ := base.Date()
-	firstDay := time.Date(year, month, 1, 0, 0, 0, 0, time.Local)
+	firstDay := time.Date(year, month, 1, 0, 0, 0, 0, jst)
 	startOffset := int(firstDay.Weekday()) // Sunday=0
-	daysInMonth := time.Date(year, month+1, 0, 0, 0, 0, 0, time.Local).Day()
-	today := time.Now()
+	daysInMonth := time.Date(year, month+1, 0, 0, 0, 0, 0, jst).Day()
+	today := jstNow()
 
 	var cells []CalendarDay
 	for i := 0; i < startOffset; i++ {
@@ -299,7 +303,7 @@ func buildCalendarWeeks(base time.Time, dailyCounts map[int]int, isPrev bool) []
 	}
 
 	for day := 1; day <= daysInMonth; day++ {
-		date := time.Date(year, month, day, 0, 0, 0, 0, time.Local)
+		date := time.Date(year, month, day, 0, 0, 0, 0, jst)
 		dateISO := date.Format("2006-01-02")
 
 		detailURL := "/admin/visits/day?date=" + url.QueryEscape(dateISO)
@@ -375,11 +379,11 @@ func handleAdminVisitsCalendar(w http.ResponseWriter, r *http.Request) {
 }
 
 func isAllowedCalendarDate(target time.Time) bool {
-	now := time.Now()
-	current := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.Local)
+	now := jstNow()
+	current := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, jst)
 	prev := current.AddDate(0, -1, 0)
 
-	targetMonth := time.Date(target.Year(), target.Month(), 1, 0, 0, 0, 0, time.Local)
+	targetMonth := time.Date(target.Year(), target.Month(), 1, 0, 0, 0, 0, jst)
 	return targetMonth.Equal(current) || targetMonth.Equal(prev)
 }
 
@@ -391,16 +395,16 @@ SELECT
   IFNULL(m.full_name, ''),
   IFNULL(m.member_type, 'general'),
   IFNULL(m.poster_id, ''),
-  MIN(strftime('%H:%M', v.visited_at, 'localtime')) AS first_visit_at,
+  MIN(strftime('%H:%M', v.visited_at)) AS first_visit_at,
   (
     SELECT COUNT(*)
     FROM visits vm
     WHERE vm.line_user_id = v.line_user_id
-      AND strftime('%Y-%m', vm.visited_at, 'localtime') = ?
+      AND strftime('%Y-%m', vm.visited_at) = ?
   ) AS monthly_count
 FROM visits v
 LEFT JOIN members m ON m.line_user_id = v.line_user_id
-WHERE date(v.visited_at, 'localtime') = ?
+WHERE date(v.visited_at) = ?
 GROUP BY
   v.line_user_id,
   m.display_name,
@@ -447,7 +451,7 @@ func handleAdminVisitsDay(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	targetDate, err := time.ParseInLocation("2006-01-02", dateISO, time.Local)
+	targetDate, err := time.ParseInLocation("2006-01-02", dateISO, jst)
 	if err != nil {
 		http.Error(w, "bad date", http.StatusBadRequest)
 		return
@@ -504,7 +508,7 @@ func handleAdminVisits(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query().Get("q")                    // フィルタ文字列
 	memberType := r.URL.Query().Get("member_type") // "general" / "1day" / ""
 
-	base := time.Now()
+	base := jstNow()
 	if mode == "prev" {
 		base = base.AddDate(0, -1, 0)
 	}
@@ -566,7 +570,7 @@ func handleAdminVisitsToday(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	now := time.Now()
+	now := jstNow()
 	dateLabel := now.Format("2006年1月2日")
 	successMsg := r.URL.Query().Get("success_msg")
 
@@ -714,20 +718,20 @@ func getUserMonthlyVisitDetail(lineUserID, ym string) (*VisitDetail, error) {
 	var base time.Time
 	if ym != "" {
 		// "2025-10" → time.Time
-		if t, err := time.Parse("2006-01", ym); err == nil {
+		if t, err := time.ParseInLocation("2006-01", ym, jst); err == nil {
 			base = t
 		} else {
-			base = time.Now()
+			base = jstNow()
 		}
 	} else {
-		base = time.Now()
+		base = jstNow()
 	}
 
 	monthLabel := base.Format("2006年1月") // 画面用
 	monthKey := base.Format("2006-01")   // SQL用 "YYYY-MM"
 
 	// ここで「前月かどうか」を判定
-	now := time.Now()
+	now := jstNow()
 	prev := now.AddDate(0, -1, 0)
 	isPrev := base.Year() == prev.Year() && base.Month() == prev.Month()
 
@@ -746,12 +750,12 @@ func getUserMonthlyVisitDetail(lineUserID, ym string) (*VisitDetail, error) {
           IFNULL(m.full_name, ''),
           IFNULL(m.member_type, 'general'),
           IFNULL(m.poster_id, ''), 
-          strftime('%Y/%m/%d %H:%M', v.visited_at) AS visited_local,
+	          strftime('%Y/%m/%d %H:%M', v.visited_at) AS visited_local,
           IFNULL(v.paid, 0)
         FROM visits v
         LEFT JOIN members m ON m.line_user_id = v.line_user_id
         WHERE v.line_user_id = ?
-          AND strftime('%Y-%m', v.visited_at, 'localtime') = ?
+	          AND strftime('%Y-%m', v.visited_at) = ?
         ORDER BY v.visited_at ASC
     `, lineUserID, monthKey)
 	if err != nil {
@@ -826,7 +830,7 @@ func isAllDueVisitsPaid(lineUserID, ym string, threshold int) (bool, error) {
 SELECT IFNULL(v.paid, 0)
 FROM visits v
 WHERE v.line_user_id = ?
-  AND strftime('%Y-%m', v.visited_at, 'localtime') = ?
+	  AND strftime('%Y-%m', v.visited_at) = ?
 ORDER BY v.visited_at ASC;
 `, lineUserID, ym)
 	if err != nil {
@@ -919,7 +923,7 @@ SELECT
   SUM(
     CASE
       WHEN v.id IS NOT NULL
-       AND strftime('%Y-%m', v.visited_at, 'localtime') = strftime('%Y-%m', 'now', 'localtime')
+       AND strftime('%Y-%m', v.visited_at) = ?
       THEN 1
       ELSE 0
     END
@@ -928,7 +932,7 @@ FROM members m
 LEFT JOIN visits v ON v.line_user_id = m.line_user_id
 `
 	var where []string
-	var args []interface{}
+	args := []interface{}{formatJSTMonth(jstNow())}
 
 	// 会員種別フィルタ
 	if filterType == "general" || filterType == "1day" {
@@ -1045,9 +1049,8 @@ func handleAdminVisitAdd(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 本日分の来店を1件追加（支払い済みフラグは 0）
-	jst := time.FixedZone("Asia/Tokyo", 9*60*60)
-	now := time.Now().In(jst)
-	visitedAt := now.Format("2006-01-02 15:04:05")
+	now := jstNow()
+	visitedAt := formatJSTDateTime(now)
 
 	log.Printf("[ADMIN] add manual visit: user=%s at %s\n", lineUserID, visitedAt)
 

@@ -7,14 +7,13 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"time"
 )
 
 func main() {
 
 	initDB()
 	startVisitsCleanupJob()
-	appLog.cleanupOldFiles(time.Now())
+	appLog.cleanupOldFiles(jstNow())
 
 	publicDir := filepath.Join(".", "public")
 	fs := http.FileServer(http.Dir(publicDir))
@@ -167,6 +166,7 @@ func handleMemberProfilePost(w http.ResponseWriter, r *http.Request) {
 	}
 
 	fullName := req.LastName + " " + req.FirstName
+	createdAt := formatJSTDateTime(jstNow())
 
 	// ① まず UPDATE（既存会員なら上書き）
 	res, err := db.Exec(
@@ -188,9 +188,9 @@ func handleMemberProfilePost(w http.ResponseWriter, r *http.Request) {
 	// ② 該当行がなければ INSERT（新規会員）
 	if rows == 0 {
 		_, err = db.Exec(
-			`INSERT INTO members(line_user_id, display_name, full_name, member_type)
-             VALUES(?, ?, ?, ?)`,
-			req.UserID, req.DisplayName, fullName, req.MemberType,
+			`INSERT INTO members(line_user_id, display_name, full_name, member_type, created_at)
+             VALUES(?, ?, ?, ?, ?)`,
+			req.UserID, req.DisplayName, fullName, req.MemberType, createdAt,
 		)
 		if err != nil {
 			fields["operation"] = "insert_member_profile"

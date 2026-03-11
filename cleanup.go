@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"time"
 )
@@ -26,10 +25,11 @@ func startVisitsCleanupJob() {
 }
 
 func runVisitsCleanup() {
+	cutoff := formatJSTDateTime(jstNow().AddDate(0, 0, -visitsRetentionDays))
 	res, err := db.Exec(
 		`DELETE FROM visits
-          WHERE visited_at < datetime('now', 'localtime', ?)`,
-		fmt.Sprintf("-%d days", visitsRetentionDays),
+          WHERE visited_at < ?`,
+		cutoff,
 	)
 	if err != nil {
 		log.Println("cleanup visits error:", err)

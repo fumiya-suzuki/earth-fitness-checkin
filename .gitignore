@@ -13,3 +13,6 @@ public/config.js
 *.db
 *.db-shm
 *.db-wal
+
+# Runtime logs
+logs/

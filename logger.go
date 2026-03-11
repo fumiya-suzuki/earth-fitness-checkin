@@ -151,7 +151,7 @@ var appLog = newAppLogger()
 func newRequestID() string {
 	buf := make([]byte, 8)
 	if _, err := rand.Read(buf); err != nil {
-		return "req-" + time.Now().Format("20060102150405.000000000")
+		return "req-" + jstNow().Format("20060102150405.000000000")
 	}
 	return "req-" + hex.EncodeToString(buf)
 }

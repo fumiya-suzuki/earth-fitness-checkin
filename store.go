@@ -50,9 +50,10 @@ func addCheckin(userID string) int {
 	mu.Lock()
 	defer mu.Unlock()
 
-	cleanupExpiredLocked(time.Now())
+	now := jstNow()
+	cleanupExpiredLocked(now)
 
-	checkedInUsers[userID] = checkinInfo{At: time.Now()}
+	checkedInUsers[userID] = checkinInfo{At: now}
 	delete(lastCheckoutAtByUser, userID)
 	return len(checkedInUsers)
 }
@@ -64,7 +65,7 @@ func removeCheckin(userID string) int {
 
 	if _, ok := checkedInUsers[userID]; ok {
 		delete(checkedInUsers, userID)
-		lastCheckoutAtByUser[userID] = time.Now()
+		lastCheckoutAtByUser[userID] = jstNow()
 	} else {
 		appLog.info("checkout_without_active_checkin", eventFields{
 			"line_user_id": userID,
@@ -78,7 +79,7 @@ func getCurrentCount() int {
 	mu.Lock()
 	defer mu.Unlock()
 
-	cleanupExpiredLocked(time.Now())
+	cleanupExpiredLocked(jstNow())
 	return len(checkedInUsers)
 }
 
@@ -92,7 +93,7 @@ func isCheckedIn(userID string) bool {
 	mu.Lock()
 	defer mu.Unlock()
 
-	now := time.Now()
+	now := jstNow()
 	// まず期限切れ掃除
 	cleanupExpiredLocked(now)
 
@@ -114,7 +115,7 @@ func getAutoToggleStatus(userID string) autoToggleStatus {
 	mu.Lock()
 	defer mu.Unlock()
 
-	now := time.Now()
+	now := jstNow()
 	cleanupExpiredLocked(now)
 
 	status := autoToggleStatus{
@@ -167,9 +168,8 @@ func recordVisit(lineUserID, displayName string) (err error) {
 	}
 
 	// 日本時間で「今」
-	jst := time.FixedZone("Asia/Tokyo", 9*60*60)
-	now := time.Now().In(jst)
-	visitedAt := now.Format("2006-01-02 15:04:05") // 例: 2025-11-25T08:22:13+09:00
+	now := jstNow()
+	visitedAt := formatJSTDateTime(now)
 
 	tx, err := db.Begin()
 	if err != nil {
