@@ -29,7 +29,6 @@ func main() {
 
 	handle("/count-json", handleCountJSON)
 	handle("/status", handleStatus)
-	handle("/client-log", handleClientLog)
 
 	// 管理画面
 	handle("/admin/visits", handleAdminVisits)
