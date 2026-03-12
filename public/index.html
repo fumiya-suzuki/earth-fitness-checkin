@@ -7,7 +7,7 @@
     href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
     rel="stylesheet"
   >
-  <link rel="stylesheet" href="/style.css?v=5">
+  <link rel="stylesheet" href="/style.css?v=4">
 </head>
 <body class="bg-light">
 
@@ -29,17 +29,6 @@
 
             <p id="result" class="mb-3 text-success"></p>
 
-            <div id="recoveryPanel" class="recovery-panel" style="display:none;">
-              <p id="recoveryTitle" class="recovery-title mb-2"></p>
-              <p id="recoveryDetail" class="recovery-detail mb-3"></p>
-              <button id="retryButton" class="btn btn-outline-primary w-100 mb-2" type="button">
-                再試行する
-              </button>
-              <p class="recovery-support mb-0">
-                改善しない場合はスタッフへお声がけください。管理画面から手動で対応できます。
-              </p>
-            </div>
-
             <div class="capacity-wrapper mb-3">
               <div class="capacity-icon"><img id="capacityIcon" src="./good.png"></div>
               <div class="capacity-bar">
@@ -47,7 +36,7 @@
                 <div id="capacityPercent" class="capacity-percent">0%</div>
               </div>
             </div>
-            <p id="capacityText" class="capacity-text mb-4">混雑度を取得中です...</p>
+            <p id="capacityText" class="capacity-text mb-4"></p>
 
             <p id="profileMessage" class="text-danger mb-2" style="display:none;"></p>
 
@@ -92,7 +81,7 @@
 
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
   <script src="/config.js?v=2"></script>
-  <script src="/app.js?v=2"></script>
+  <script src="/app.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
