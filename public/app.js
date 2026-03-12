@@ -3,6 +3,9 @@ let currentDisplayName = "";
 const MAX_FALLBACK = 10; // Go側と合わせる
 const host = window.location.hostname;
 const USE_LIFF = host !== "localhost" && host !== "127.0.0.1" && host !== "::1";
+const RESOLVED_LIFF_ID =
+  (typeof window !== "undefined" && window.LIFF_ID) ||
+  (typeof LIFF_ID !== "undefined" ? LIFF_ID : "");
 
 const LOCAL_DEV_USER = {
   userId: "local-dev-user",
@@ -10,6 +13,7 @@ const LOCAL_DEV_USER = {
 };
 
 const resultEl = document.getElementById("result");
+const capacityTextEl = document.getElementById("capacityText");
 
 function showResultMessage(message, isError = false) {
   if (!resultEl) {
@@ -20,27 +24,65 @@ function showResultMessage(message, isError = false) {
   resultEl.classList.add(isError ? "text-danger" : "text-success");
 }
 
+function showInitFailureMessage(message) {
+  showResultMessage(message, true);
+  if (capacityTextEl) {
+    capacityTextEl.textContent = "混雑度を取得できませんでした。再読み込みしてください。";
+  }
+}
+
+async function reportClientError(event, detail, stage) {
+  try {
+    await fetch("/client-log", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        event,
+        level: "ERROR",
+        userId: currentUserId,
+        displayName: currentDisplayName,
+        path: window.location.pathname,
+        userAgent: navigator.userAgent,
+        detail,
+        stage,
+      }),
+      keepalive: true,
+    });
+  } catch (err) {
+    console.error("client-log failed", err);
+  }
+}
+
 // プロフィール取得・表示制御 ------------------------------
 
 async function ensureProfile(userId) {
   currentUserId = userId;
 
-  const res = await fetch(`/member/profile?userId=${encodeURIComponent(userId)}`);
-  if (!res.ok) {
-    console.error("profile get error", res.status);
+  try {
+    const res = await fetch(`/member/profile?userId=${encodeURIComponent(userId)}`);
+    if (!res.ok) {
+      console.error("profile get error", res.status);
+      await reportClientError("profile_fetch_failed", `status=${res.status}`, "ensureProfile");
+      showProfileForm();
+      return false;
+    }
+
+    const data = await res.json();
+
+    if (!data.exists) {
+      showProfileForm();
+      return false;
+    }
+
+    hideProfileForm();
+    return true;
+  } catch (e) {
+    console.error("profile fetch exception", e);
+    await reportClientError("profile_fetch_failed", e.message || String(e), "ensureProfile");
     showProfileForm();
+    showInitFailureMessage("会員情報の確認に失敗しました。通信状態をご確認のうえ、再読み込みしてください。");
     return false;
   }
-
-  const data = await res.json();
-
-  if (!data.exists) {
-    showProfileForm();
-    return false;
-  }
-
-  hideProfileForm();
-  return true;
 }
 
 function showProfileForm() {
@@ -98,7 +140,8 @@ async function submitProfile() {
     hideProfileForm();
     await autoToggleCheckin();
   } catch (e) {
-    console.error(e);
+    console.error("profile submit error", e);
+    await reportClientError("profile_register_failed", e.message || String(e), "submitProfile");
     msg.style.display = "block";
     msg.textContent = "通信エラーが発生しました。";
   }
@@ -109,33 +152,75 @@ async function submitProfile() {
 // -------------------------------------------------------
 
 async function init() {
-  if (USE_LIFF) {
-    await liff.init({ liffId: LIFF_ID });
+  try {
+    if (USE_LIFF) {
+      if (!RESOLVED_LIFF_ID) {
+        throw new Error("config_missing");
+      }
+      if (!window.liff) {
+        throw new Error("liff_sdk_missing");
+      }
 
-    if (!liff.isLoggedIn()) {
-      liff.login();
+      try {
+        await liff.init({ liffId: RESOLVED_LIFF_ID });
+      } catch (e) {
+        console.error("liff.init failed", e);
+        await reportClientError("liff_init_failed", e.message || String(e), "init");
+        showInitFailureMessage("LINE初期化に失敗しました。LINEアプリから開き直してください。");
+        return;
+      }
+
+      if (!liff.isLoggedIn()) {
+        console.error("liff not logged in");
+        liff.login();
+        return;
+      }
+
+      try {
+        const profile = await liff.getProfile();
+        currentUserId = profile.userId;
+        currentDisplayName = profile.displayName;
+      } catch (e) {
+        console.error("liff.getProfile failed", e);
+        await reportClientError("liff_profile_failed", e.message || String(e), "init");
+        showInitFailureMessage("LINEプロフィール取得に失敗しました。LINEアプリから開き直してください。");
+        return;
+      }
+    } else {
+      currentUserId = LOCAL_DEV_USER.userId;
+      currentDisplayName = LOCAL_DEV_USER.displayName;
+    }
+
+    const profileReady = await ensureProfile(currentUserId);
+    if (!profileReady) {
       return;
     }
 
-    const profile = await liff.getProfile();
-    currentUserId = profile.userId;
-    currentDisplayName = profile.displayName;
-  } else {
-    currentUserId = LOCAL_DEV_USER.userId;
-    currentDisplayName = LOCAL_DEV_USER.displayName;
+    await autoToggleCheckin();
+  } catch (e) {
+    console.error("init failed", e);
+    const message = e && e.message ? e.message : String(e);
+    await reportClientError("init_failed", message, "init");
+    if (message === "config_missing") {
+      showInitFailureMessage("設定の読み込みに失敗しました。時間をおいて再読み込みしてください。");
+      return;
+    }
+    if (message === "liff_sdk_missing") {
+      showInitFailureMessage("LINE SDKの読み込みに失敗しました。LINEアプリから開き直してください。");
+      return;
+    }
+    showInitFailureMessage("初期化に失敗しました。再読み込みしてください。");
   }
-
-  const profileReady = await ensureProfile(currentUserId);
-  if (!profileReady) {
-    return;
-  }
-
-  await autoToggleCheckin();
 }
 
 async function autoToggleCheckin() {
   try {
     const statusRes = await fetch(`/status?userId=${encodeURIComponent(currentUserId)}`);
+    if (!statusRes.ok) {
+      console.error("status fetch failed", statusRes.status);
+      await reportClientError("status_fetch_failed", `status=${statusRes.status}`, "autoToggleCheckin");
+      throw new Error(`status failed: ${statusRes.status}`);
+    }
     const statusData = await statusRes.json();
     updateCapacityBar(statusData.count, MAX_FALLBACK);
 
@@ -157,6 +242,8 @@ async function autoToggleCheckin() {
       });
 
       if (!checkoutRes.ok) {
+        console.error("checkout failed", checkoutRes.status);
+        await reportClientError("checkout_failed", `status=${checkoutRes.status}`, "autoToggleCheckin");
         throw new Error(`checkout failed: ${checkoutRes.status}`);
       }
 
@@ -183,6 +270,8 @@ async function autoToggleCheckin() {
     });
 
     if (!checkinRes.ok) {
+      console.error("checkin failed", checkinRes.status);
+      await reportClientError("checkin_failed", `status=${checkinRes.status}`, "autoToggleCheckin");
       throw new Error(`checkin failed: ${checkinRes.status}`);
     }
 
@@ -190,7 +279,8 @@ async function autoToggleCheckin() {
     updateCapacityBar(checkinData.count, MAX_FALLBACK);
     showResultMessage("チェックインが完了しました。");
   } catch (e) {
-    console.error(e);
+    console.error("autoToggleCheckin failed", e);
+    await reportClientError("auto_toggle_failed", e.message || String(e), "autoToggleCheckin");
     showResultMessage("チェックイン/チェックアウトに失敗しました。", true);
   }
 }

@@ -6,6 +6,17 @@ import (
 	"net/http"
 )
 
+type clientLogRequest struct {
+	Event       string `json:"event"`
+	Level       string `json:"level"`
+	UserID      string `json:"userId"`
+	DisplayName string `json:"displayName"`
+	Path        string `json:"path"`
+	UserAgent   string `json:"userAgent"`
+	Detail      string `json:"detail"`
+	Stage       string `json:"stage"`
+}
+
 // GET /count-json
 func handleCountJSON(w http.ResponseWriter, r *http.Request) {
 	count := getCurrentCount() // ← ここで期限切れも掃除される
@@ -169,4 +180,49 @@ func handleStatus(w http.ResponseWriter, r *http.Request) {
 		"autoCheckoutBlockedSeconds": status.AutoCheckoutBlockedSeconds,
 		"autoCheckinBlockedSeconds":  status.AutoCheckinBlockedSeconds,
 	})
+}
+
+// POST /client-log
+func handleClientLog(w http.ResponseWriter, r *http.Request) {
+	fields := eventFieldsFromRequest(r)
+	if r.Method != http.MethodPost {
+		fields["status"] = http.StatusMethodNotAllowed
+		appLog.error("request_error", fields)
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req clientLogRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		fields["status"] = http.StatusBadRequest
+		fields["error"] = "bad request"
+		appLog.error("request_error", fields)
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+
+	fields["client_event"] = req.Event
+	fields["stage"] = req.Stage
+	fields["detail"] = req.Detail
+	if req.Path != "" {
+		fields["client_path"] = req.Path
+	}
+	if req.UserAgent != "" {
+		fields["user_agent"] = req.UserAgent
+	}
+	if req.UserID != "" {
+		fields["line_user_id"] = req.UserID
+	}
+	if req.DisplayName != "" {
+		fields["display_name"] = req.DisplayName
+	}
+
+	if req.Level == "INFO" {
+		appLog.info("client_diag", fields)
+	} else {
+		appLog.error("client_diag", fields)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]bool{"ok": true})
 }
