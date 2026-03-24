@@ -19,13 +19,6 @@ function setUserGestureed() {
   userGestureed = true;
 }
 
-function safeVibrate(pattern) {
-  // 画面タップ後に動作するようにしつつ、対応していれば振動を発生
-  if (navigator.vibrate) {
-    navigator.vibrate(pattern);
-  }
-}
-
 document.addEventListener(
   "click",
   () => {
@@ -57,11 +50,8 @@ if (resultEl && !document.body.contains(resultOverlay)) {
   resultEl.parentNode?.insertBefore(resultOverlay, resultEl);
   resultOverlay.appendChild(resultEl);
 
-  // overlay クリックで振動のみ（消滅はタイマー任せ）
+  // overlay クリックで消滅（タイマー任せ）
   resultOverlay.addEventListener("click", () => {
-    if (navigator.vibrate) {
-      navigator.vibrate([30, 20, 30]);
-    }
     playTapSound();
     // hideResultMessage(); // 即時消滅を削除
   });
@@ -123,15 +113,13 @@ function showResultMessage(message, isError = false, actionType = "info") {
   }
   resultEl.classList.add("active");
 
-  safeVibrate(35);
-
   if (resultMessageTimeout) {
     clearTimeout(resultMessageTimeout);
   }
 
   resultMessageTimeout = setTimeout(() => {
     hideResultMessage();
-  }, 5000);
+  }, 3000);
 }
 
 function showInitFailureMessage(message) {
