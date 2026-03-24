@@ -23,7 +23,116 @@ body {
     font-size: 2.0rem;
     margin-bottom: 0.25rem;
   }
-  
+
+  /* モーダル風メッセージ表示 */
+  .result-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9998;
+    background: rgba(0, 0, 0, 0.45);
+    display: none;
+    justify-content: flex-start;
+    align-items: flex-start;
+    padding: 1.8rem 1.2rem 0.8rem;
+  }
+
+  .result-overlay.active {
+    display: flex;
+  }
+
+  .result-message {
+    background: white;
+    border-radius: 1rem;
+    padding: 1.6rem 1.8rem;
+    min-width: 260px;
+    max-width: 90vw;
+    box-shadow: 0 20px 30px rgba(0, 0, 0, 0.35);
+    text-align: center;
+    font-weight: 800;
+    font-size: 2.0rem;
+    line-height: 1.4;
+    color: #202020;
+    transition: transform 0.3s ease, opacity 0.3s ease;
+    transform: translateY(0);
+    opacity: 0;
+    position: relative;
+    left: 0;
+    right: 0;
+    margin: 0 auto;
+  }
+
+  .result-message.active {
+    transform: translateY(0);
+    opacity: 1;
+  }
+
+  /* モーダル内をクリックしても親のクリック（閉じる）を発生させない */
+  .result-message.click-capture {
+    pointer-events: auto;
+  }
+
+  .result-info {
+    border: 1px solid #7db4e3;
+    color: #0b4d84;
+  }
+
+  .result-checkin {
+    border: 1px solid #1e7f3d;
+    color: #0f5f35;
+  }
+
+  .result-checkout {
+    border: 1px solid #0f6bc2;
+    color: #08427f;
+  }
+
+  .result-error {
+    border: 1px solid #dc3545;
+    color: #842029;
+  }
+
+  .result-message.active {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .result-info {
+    background: #e2efff;
+    border: 1px solid #7db4e3;
+    color: #0b4d84;
+  }
+
+  .result-success,
+  .result-checkin,
+  .result-checkout {
+    background: #e6ffed;
+    border: 1px solid #28a745;
+    color: #155724;
+  }
+
+  .result-checkin {
+    background: #d3f8e5;
+    border-color: #1e7f3d;
+    color: #0f5f35;
+  }
+
+  .result-checkout {
+    background: #e0f1ff;
+    border-color: #0f6bc2;
+    color: #08427f;
+  }
+
+  .result-error {
+    background: #ffe4e6;
+    border: 1px solid #dc3545;
+    color: #842029;
+  }
+
+  .result-message.hide {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+
   /* バーまわり */
   .capacity-wrapper {
     display: flex;
