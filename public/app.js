@@ -44,8 +44,14 @@ resultOverlay.className = "result-overlay";
 const resultEl = document.getElementById("result");
 const capacityTextEl = document.getElementById("capacityText");
 let resultMessageTimeout = null;
+let originalParent = null;
+let originalNextSibling = null;
 
 if (resultEl && !document.body.contains(resultOverlay)) {
+  // 元の位置を保存
+  originalParent = resultEl.parentNode;
+  originalNextSibling = resultEl.nextSibling;
+
   // #result を overlay に移動表示
   resultEl.parentNode?.insertBefore(resultOverlay, resultEl);
   resultOverlay.appendChild(resultEl);
@@ -64,26 +70,27 @@ if (resultEl && !document.body.contains(resultOverlay)) {
 
 function hideResultMessage() {
   if (!resultEl) return;
-  resultEl.textContent = "";
-  resultEl.classList.remove(
-    "result-message",
-    "result-info",
-    "result-checkin",
-    "result-checkout",
-    "result-success",
-    "result-error",
-    "active"
-  );
+  // モーダルを非アクティブに
   if (resultOverlay) {
     resultOverlay.classList.remove("active");
   }
+  // resultEl を元の位置に戻す
+  if (originalParent && resultEl.parentNode === resultOverlay) {
+    originalParent.insertBefore(resultEl, originalNextSibling);
+  }
+  // スタイルをリセット（ただしメッセージは残す）
   resultEl.style.opacity = "";
-  resultEl.style.transform = "translate(-50%, -15px)";
+  resultEl.style.transform = "translateY(-15px)";
 }
 
 function showResultMessage(message, isError = false, actionType = "info") {
   if (!resultEl) {
     return;
+  }
+
+  // resultEl をモーダルに移動
+  if (resultEl.parentNode !== resultOverlay) {
+    resultOverlay.appendChild(resultEl);
   }
 
   const kind = isError ? "error" : actionType;
