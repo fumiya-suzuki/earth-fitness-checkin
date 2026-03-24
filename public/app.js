@@ -12,16 +12,126 @@ const LOCAL_DEV_USER = {
   displayName: "Local Dev",
 };
 
+let userGestureed = false;
+
+function setUserGestureed() {
+  if (userGestureed) return;
+  userGestureed = true;
+}
+
+function safeVibrate(pattern) {
+  // 画面タップ後に動作するようにしつつ、対応していれば振動を発生
+  if (navigator.vibrate) {
+    navigator.vibrate(pattern);
+  }
+}
+
+document.addEventListener(
+  "click",
+  () => {
+    setUserGestureed();
+  },
+  { capture: true, once: true }
+);
+
+document.addEventListener(
+  "touchstart",
+  () => {
+    setUserGestureed();
+  },
+  { capture: true, once: true }
+);
+
+function playTapSound() {
+  // 音声機能は削除したため、ここは何もしない
+}
+
+const resultOverlay = document.createElement("div");
+resultOverlay.className = "result-overlay";
 const resultEl = document.getElementById("result");
 const capacityTextEl = document.getElementById("capacityText");
+let resultMessageTimeout = null;
 
-function showResultMessage(message, isError = false) {
+if (resultEl && !document.body.contains(resultOverlay)) {
+  // #result を overlay に移動表示
+  resultEl.parentNode?.insertBefore(resultOverlay, resultEl);
+  resultOverlay.appendChild(resultEl);
+
+  // overlay クリックで振動のみ（消滅はタイマー任せ）
+  resultOverlay.addEventListener("click", () => {
+    if (navigator.vibrate) {
+      navigator.vibrate([30, 20, 30]);
+    }
+    playTapSound();
+    // hideResultMessage(); // 即時消滅を削除
+  });
+
+  // resultEl クリックはバブリングを止める（モーダル内部クリックで閉じない）
+  resultEl.addEventListener("click", (ev) => {
+    ev.stopPropagation();
+  });
+}
+
+function hideResultMessage() {
+  if (!resultEl) return;
+  resultEl.textContent = "";
+  resultEl.classList.remove(
+    "result-message",
+    "result-info",
+    "result-checkin",
+    "result-checkout",
+    "result-success",
+    "result-error",
+    "active"
+  );
+  if (resultOverlay) {
+    resultOverlay.classList.remove("active");
+  }
+  resultEl.style.opacity = "";
+  resultEl.style.transform = "translate(-50%, -15px)";
+}
+
+function showResultMessage(message, isError = false, actionType = "info") {
   if (!resultEl) {
     return;
   }
+
+  const kind = isError ? "error" : actionType;
+  const klass = {
+    info: "result-info",
+    success: "result-success",
+    checkin: "result-checkin",
+    checkout: "result-checkout",
+    error: "result-error",
+  }[kind] || "result-info";
+
   resultEl.textContent = message;
-  resultEl.classList.remove("text-success", "text-danger");
-  resultEl.classList.add(isError ? "text-danger" : "text-success");
+  resultEl.classList.remove(
+    "text-success",
+    "text-danger",
+    "result-message",
+    "result-info",
+    "result-checkin",
+    "result-checkout",
+    "result-success",
+    "result-error",
+    "active"
+  );
+  resultEl.classList.add("result-message", klass, "active");
+  if (resultOverlay) {
+    resultOverlay.classList.add("active");
+  }
+  resultEl.classList.add("active");
+
+  safeVibrate(35);
+
+  if (resultMessageTimeout) {
+    clearTimeout(resultMessageTimeout);
+  }
+
+  resultMessageTimeout = setTimeout(() => {
+    hideResultMessage();
+  }, 5000);
 }
 
 function showInitFailureMessage(message) {
@@ -249,7 +359,7 @@ async function autoToggleCheckin() {
 
       const checkoutData = await checkoutRes.json();
       updateCapacityBar(checkoutData.count, MAX_FALLBACK);
-      showResultMessage("チェックアウトしました。");
+      showResultMessage("チェックアウトしました。", false, "checkout");
       return;
     }
 
@@ -277,7 +387,7 @@ async function autoToggleCheckin() {
 
     const checkinData = await checkinRes.json();
     updateCapacityBar(checkinData.count, MAX_FALLBACK);
-    showResultMessage("チェックインが完了しました。");
+    showResultMessage("チェックインが完了しました。", false, "checkin");
   } catch (e) {
     console.error("autoToggleCheckin failed", e);
     await reportClientError("auto_toggle_failed", e.message || String(e), "autoToggleCheckin");
