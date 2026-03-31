@@ -28,6 +28,14 @@ var funcMap = template.FuncMap{
 	"add": func(a, b int) int { return a + b },
 }
 
+func monthStart(t time.Time) time.Time {
+	return time.Date(t.Year(), t.Month(), 1, 0, 0, 0, 0, jst)
+}
+
+func relativeMonthStart(base time.Time, offset int) time.Time {
+	return monthStart(base).AddDate(0, offset, 0)
+}
+
 func mustParseAdminTemplate(file string) *template.Template {
 	return template.Must(
 		template.New(file).
@@ -243,11 +251,11 @@ type DailyVisitor struct {
 }
 
 func getCalendarBaseMonth(mode string) time.Time {
-	base := jstNow()
+	base := monthStart(jstNow())
 	if mode == "prev" {
 		base = base.AddDate(0, -1, 0)
 	}
-	return time.Date(base.Year(), base.Month(), 1, 0, 0, 0, 0, jst)
+	return base
 }
 
 func getMonthlyDailyVisitorCounts(monthKey string) (map[int]int, int, error) {
@@ -380,10 +388,10 @@ func handleAdminVisitsCalendar(w http.ResponseWriter, r *http.Request) {
 
 func isAllowedCalendarDate(target time.Time) bool {
 	now := jstNow()
-	current := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, jst)
+	current := monthStart(now)
 	prev := current.AddDate(0, -1, 0)
 
-	targetMonth := time.Date(target.Year(), target.Month(), 1, 0, 0, 0, 0, jst)
+	targetMonth := monthStart(target)
 	return targetMonth.Equal(current) || targetMonth.Equal(prev)
 }
 
@@ -508,7 +516,7 @@ func handleAdminVisits(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query().Get("q")                    // フィルタ文字列
 	memberType := r.URL.Query().Get("member_type") // "general" / "1day" / ""
 
-	base := jstNow()
+	base := monthStart(jstNow())
 	if mode == "prev" {
 		base = base.AddDate(0, -1, 0)
 	}
@@ -731,8 +739,7 @@ func getUserMonthlyVisitDetail(lineUserID, ym string) (*VisitDetail, error) {
 	monthKey := base.Format("2006-01")   // SQL用 "YYYY-MM"
 
 	// ここで「前月かどうか」を判定
-	now := jstNow()
-	prev := now.AddDate(0, -1, 0)
+	prev := relativeMonthStart(jstNow(), -1)
 	isPrev := base.Year() == prev.Year() && base.Month() == prev.Month()
 
 	detail := &VisitDetail{

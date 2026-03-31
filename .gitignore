@@ -1,6 +1,7 @@
 # Go build
 checkin-app
 *.exe
+.gocache/
 
 # Frontend secrets-ish
 public/config.js
