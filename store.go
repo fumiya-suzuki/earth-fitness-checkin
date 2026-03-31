@@ -2,6 +2,7 @@
 package main
 
 import (
+	"database/sql"
 	"sync"
 	"time"
 )
@@ -212,4 +213,31 @@ func recordVisit(lineUserID, displayName string) (err error) {
 	}
 
 	return tx.Commit()
+}
+
+func shouldShowLightPlanCheckinNotice(lineUserID string) (bool, error) {
+	now := jstNow()
+	monthKey := formatJSTMonth(now)
+
+	var memberType string
+	var monthlyCount int
+	err := db.QueryRow(`
+SELECT
+  IFNULL(m.member_type, 'general'),
+  COUNT(v.id)
+FROM members m
+LEFT JOIN visits v
+  ON v.line_user_id = m.line_user_id
+  AND strftime('%Y-%m', v.visited_at) = ?
+WHERE m.line_user_id = ?
+GROUP BY m.line_user_id, m.member_type
+`, monthKey, lineUserID).Scan(&memberType, &monthlyCount)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+
+	return memberType == "1day" && monthlyCount >= 5, nil
 }

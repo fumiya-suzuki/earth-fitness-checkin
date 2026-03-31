@@ -382,7 +382,11 @@ async function autoToggleCheckin() {
 
     const checkinData = await checkinRes.json();
     updateCapacityBar(checkinData.count, MAX_FALLBACK);
-    showResultMessage("チェックインが完了しました。", false, "checkin");
+    showResultMessage(
+      checkinData.message || "チェックインが完了しました。",
+      false,
+      "checkin"
+    );
   } catch (e) {
     console.error("autoToggleCheckin failed", e);
     await reportClientError("auto_toggle_failed", e.message || String(e), "autoToggleCheckin");

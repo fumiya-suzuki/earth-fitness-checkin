@@ -6,6 +6,13 @@ import (
 	"net/http"
 )
 
+type checkinResponse struct {
+	Count               int    `json:"count"`
+	Max                 int    `json:"max"`
+	ShowLightPlanNotice bool   `json:"showLightPlanNotice"`
+	Message             string `json:"message,omitempty"`
+}
+
 type clientLogRequest struct {
 	Event       string `json:"event"`
 	Level       string `json:"level"`
@@ -67,12 +74,29 @@ func handleCheckin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	count := addCheckin(req.UserID)
+	showLightPlanNotice, err := shouldShowLightPlanCheckinNotice(req.UserID)
+	if err != nil {
+		log.Println("shouldShowLightPlanCheckinNotice error:", err)
+		appLog.error("db_error", eventFields{
+			"request_id":   requestIDFromContext(r.Context()),
+			"path":         r.URL.Path,
+			"method":       r.Method,
+			"line_user_id": req.UserID,
+			"operation":    "check_light_plan_notice",
+			"error":        err.Error(),
+		})
+	}
 
 	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(map[string]int{
-		"count": count,
-		"max":   getMaxPeople(),
-	}); err != nil {
+	resp := checkinResponse{
+		Count:               count,
+		Max:                 getMaxPeople(),
+		ShowLightPlanNotice: showLightPlanNotice,
+	}
+	if showLightPlanNotice {
+		resp.Message = "チェックインが完了しました。\n【ライトプラン】今月5回目以降のご来店です。\nスタッフにお声がけください。"
+	}
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
 		log.Println("encode error:", err)
 		appLog.error("response_encode_failed", eventFields{
 			"request_id":   requestIDFromContext(r.Context()),
