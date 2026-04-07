@@ -15,6 +15,12 @@ func main() {
 	startVisitsCleanupJob()
 	appLog.cleanupOldFiles(jstNow())
 
+	adminConfig, err := loadAdminAuthConfig()
+	if err != nil {
+		log.Fatal(err)
+	}
+	adminAuth := newAdminAuth(adminConfig)
+
 	publicDir := filepath.Join(".", "public")
 	fs := http.FileServer(http.Dir(publicDir))
 	http.Handle("/", withRequestID(fs))
@@ -23,6 +29,9 @@ func main() {
 	handle := func(pattern string, fn http.HandlerFunc) {
 		http.Handle(pattern, withRequestID(http.HandlerFunc(fn)))
 	}
+	handleAdmin := func(pattern string, fn http.HandlerFunc) {
+		http.Handle(pattern, adminAuth.middleware(withRequestID(http.HandlerFunc(fn))))
+	}
 
 	handle("/checkin", handleCheckin)
 	handle("/checkout", handleCheckout)
@@ -30,19 +39,21 @@ func main() {
 	handle("/count-json", handleCountJSON)
 	handle("/status", handleStatus)
 	handle("/client-log", handleClientLog)
+	handle("/admin/login", adminAuth.handleLogin)
+	handleAdmin("/admin/logout", adminAuth.handleLogout)
 
 	// 管理画面
-	handle("/admin/visits", handleAdminVisits)
-	handle("/admin/visits/today", handleAdminVisitsToday)
-	handle("/admin/visits/calendar", handleAdminVisitsCalendar)
-	handle("/admin/visits/day", handleAdminVisitsDay)
-	handle("/admin/visits/user", handleAdminVisitDetail)
-	handle("/admin/member/type", handleAdminUpdateMemberType)
-	handle("/admin/member/poster-id", handleAdminUpdatePosterID)
-	handle("/admin/visits/pay", handleAdminVisitPay)
-	handle("/admin/visits/add", handleAdminVisitAdd)
-	handle("/admin/visits/delete", handleAdminVisitDelete)
-	handle("/admin/members", handleAdminMembers)
+	handleAdmin("/admin/visits", handleAdminVisits)
+	handleAdmin("/admin/visits/today", handleAdminVisitsToday)
+	handleAdmin("/admin/visits/calendar", handleAdminVisitsCalendar)
+	handleAdmin("/admin/visits/day", handleAdminVisitsDay)
+	handleAdmin("/admin/visits/user", handleAdminVisitDetail)
+	handleAdmin("/admin/member/type", handleAdminUpdateMemberType)
+	handleAdmin("/admin/member/poster-id", handleAdminUpdatePosterID)
+	handleAdmin("/admin/visits/pay", handleAdminVisitPay)
+	handleAdmin("/admin/visits/add", handleAdminVisitAdd)
+	handleAdmin("/admin/visits/delete", handleAdminVisitDelete)
+	handleAdmin("/admin/members", handleAdminMembers)
 	handle("/member/profile", handleMemberProfile)
 
 	// ポート設定
