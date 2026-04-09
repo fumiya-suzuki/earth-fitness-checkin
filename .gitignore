@@ -2,6 +2,9 @@
 checkin-app
 *.exe
 .gocache/
+.env
+.env.*
+!.env.example
 
 # Frontend secrets-ish
 public/config.js

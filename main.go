@@ -10,6 +10,9 @@ import (
 )
 
 func main() {
+	if err := loadDotEnv(".env"); err != nil {
+		log.Fatal(err)
+	}
 
 	initDB()
 	startVisitsCleanupJob()
