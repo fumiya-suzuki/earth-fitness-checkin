@@ -420,13 +420,13 @@ function updateCapacityBar(count, max) {
   fill.style.width = `${percent}%`;
 
   if (percent > 69) {
-    fill.style.background = "linear-gradient(90deg, #f43f5e 0%, #e11d48 100%)";
+    fill.style.background = "linear-gradient(90deg, #e05252 0%, #c53030 100%)";
     icon.src = "./hard.png";
   } else if (percent > 49) {
-    fill.style.background = "linear-gradient(90deg, #fb923c 0%, #f97316 100%)";
+    fill.style.background = "linear-gradient(90deg, #d9a441 0%, #b7791f 100%)";
     icon.src = "./normal.png";
   } else {
-    fill.style.background = "linear-gradient(90deg, #22c55e 0%, #16a34a 100%)";
+    fill.style.background = "linear-gradient(90deg, #3ba56d 0%, #1f7a4d 100%)";
     icon.src = "./good.png";
   }
 
