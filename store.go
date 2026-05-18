@@ -35,11 +35,11 @@ func cleanupExpiredLocked(now time.Time) {
 		if now.Sub(info.At) > expireAfter {
 			delete(checkedInUsers, id)
 			appLog.info("checkin_expired_cleanup", eventFields{
-				"line_user_id":       id,
-				"checked_in_at":      info.At.Format(time.RFC3339),
-				"expired_after_min":  int(expireAfter / time.Minute),
-				"cleaned_up_at":      now.Format(time.RFC3339),
-				"cleanup_reason":     "expired_session",
+				"line_user_id":        id,
+				"checked_in_at":       info.At.Format(time.RFC3339),
+				"expired_after_min":   int(expireAfter / time.Minute),
+				"cleaned_up_at":       now.Format(time.RFC3339),
+				"cleanup_reason":      "expired_session",
 				"remaining_checkedin": len(checkedInUsers),
 			})
 		}
@@ -213,6 +213,26 @@ func recordVisit(lineUserID, displayName string) (err error) {
 	}
 
 	return tx.Commit()
+}
+
+func getMonthlyVisitCount(lineUserID string) (int, error) {
+	if lineUserID == "" {
+		return 0, nil
+	}
+
+	monthKey := formatJSTMonth(jstNow())
+	var count int
+	err := db.QueryRow(`
+SELECT COUNT(*)
+FROM visits
+WHERE line_user_id = ?
+  AND strftime('%Y-%m', visited_at) = ?
+`, lineUserID, monthKey).Scan(&count)
+	if err != nil {
+		return 0, err
+	}
+
+	return count, nil
 }
 
 func shouldShowLightPlanCheckinNotice(lineUserID string) (bool, error) {

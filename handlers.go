@@ -7,8 +7,10 @@ import (
 )
 
 type checkinResponse struct {
-	Count               int    `json:"count"`
-	Max                 int    `json:"max"`
+	Count             int `json:"count"`
+	Max               int `json:"max"`
+	MonthlyVisitCount int `json:"monthlyVisitCount"`
+
 	ShowLightPlanNotice bool   `json:"showLightPlanNotice"`
 	Message             string `json:"message,omitempty"`
 }
@@ -74,6 +76,19 @@ func handleCheckin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	count := addCheckin(req.UserID)
+	monthlyVisitCount, err := getMonthlyVisitCount(req.UserID)
+	if err != nil {
+		log.Println("getMonthlyVisitCount error:", err)
+		appLog.error("db_error", eventFields{
+			"request_id":   requestIDFromContext(r.Context()),
+			"path":         r.URL.Path,
+			"method":       r.Method,
+			"line_user_id": req.UserID,
+			"operation":    "get_monthly_visit_count",
+			"error":        err.Error(),
+		})
+	}
+
 	showLightPlanNotice, err := shouldShowLightPlanCheckinNotice(req.UserID)
 	if err != nil {
 		log.Println("shouldShowLightPlanCheckinNotice error:", err)
@@ -89,8 +104,10 @@ func handleCheckin(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	resp := checkinResponse{
-		Count:               count,
-		Max:                 getMaxPeople(),
+		Count:             count,
+		Max:               getMaxPeople(),
+		MonthlyVisitCount: monthlyVisitCount,
+
 		ShowLightPlanNotice: showLightPlanNotice,
 	}
 	if showLightPlanNotice {
@@ -110,6 +127,7 @@ func handleCheckin(w http.ResponseWriter, r *http.Request) {
 	successFields["line_user_id"] = req.UserID
 	successFields["display_name"] = req.DisplayName
 	successFields["count_after"] = count
+	successFields["monthly_visit_count"] = monthlyVisitCount
 	appLog.info("checkin_success", successFields)
 
 	log.Printf("チェックイン：%+v\n", req)
@@ -175,10 +193,21 @@ func handleStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	status := getAutoToggleStatus(userID)
+	monthlyVisitCount, err := getMonthlyVisitCount(userID)
+	if err != nil {
+		log.Println("getMonthlyVisitCount error:", err)
+		fields["operation"] = "get_monthly_visit_count"
+		fields["error"] = err.Error()
+		appLog.error("db_error", fields)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
 	fields["line_user_id"] = userID
 	fields["checked_in"] = status.CheckedIn
 	fields["count"] = status.Count
 	fields["max"] = status.Max
+	fields["monthly_visit_count"] = monthlyVisitCount
 	fields["can_auto_checkout"] = status.CanAutoCheckout
 	fields["can_auto_checkin"] = status.CanAutoCheckin
 	fields["auto_checkout_blocked_seconds"] = status.AutoCheckoutBlockedSeconds
@@ -199,6 +228,7 @@ func handleStatus(w http.ResponseWriter, r *http.Request) {
 		"checkedIn":                  status.CheckedIn,
 		"count":                      status.Count,
 		"max":                        status.Max,
+		"monthlyVisitCount":          monthlyVisitCount,
 		"canAutoCheckout":            status.CanAutoCheckout,
 		"canAutoCheckin":             status.CanAutoCheckin,
 		"autoCheckoutBlockedSeconds": status.AutoCheckoutBlockedSeconds,

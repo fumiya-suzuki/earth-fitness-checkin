@@ -43,6 +43,7 @@ const resultOverlay = document.createElement("div");
 resultOverlay.className = "result-overlay";
 const resultEl = document.getElementById("result");
 const capacityTextEl = document.getElementById("capacityText");
+const monthlyVisitCountEl = document.getElementById("monthlyVisitCount");
 let resultMessageTimeout = null;
 let originalParent = null;
 let originalNextSibling = null;
@@ -134,6 +135,18 @@ function showInitFailureMessage(message) {
   if (capacityTextEl) {
     capacityTextEl.textContent = "混雑度を取得できませんでした。再読み込みしてください。";
   }
+  updateMonthlyVisitCount(null);
+}
+
+function updateMonthlyVisitCount(count) {
+  if (!monthlyVisitCountEl) return;
+
+  if (count === null || count === undefined || Number.isNaN(Number(count))) {
+    monthlyVisitCountEl.textContent = "-";
+    return;
+  }
+
+  monthlyVisitCountEl.textContent = String(Number(count));
 }
 
 async function reportClientError(event, detail, stage) {
@@ -328,6 +341,7 @@ async function autoToggleCheckin() {
     }
     const statusData = await statusRes.json();
     updateCapacityBar(statusData.count, MAX_FALLBACK);
+    updateMonthlyVisitCount(statusData.monthlyVisitCount);
 
     if (statusData.checkedIn) {
       if (!statusData.canAutoCheckout) {
@@ -382,6 +396,7 @@ async function autoToggleCheckin() {
 
     const checkinData = await checkinRes.json();
     updateCapacityBar(checkinData.count, MAX_FALLBACK);
+    updateMonthlyVisitCount(checkinData.monthlyVisitCount);
     showResultMessage(
       checkinData.message || "チェックインが完了しました。",
       false,
