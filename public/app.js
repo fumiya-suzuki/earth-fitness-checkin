@@ -149,6 +149,30 @@ function updateMonthlyVisitCount(count) {
   monthlyVisitCountEl.textContent = String(Number(count));
 }
 
+async function refreshMonthlyVisitCount() {
+  if (!currentUserId) {
+    updateMonthlyVisitCount(null);
+    return;
+  }
+
+  try {
+    const res = await fetch(`/member/monthly-visits?userId=${encodeURIComponent(currentUserId)}`, {
+      cache: "no-store",
+    });
+    if (!res.ok) {
+      console.error("monthly visits fetch failed", res.status);
+      await reportClientError("monthly_visits_fetch_failed", `status=${res.status}`, "refreshMonthlyVisitCount");
+      return;
+    }
+
+    const data = await res.json();
+    updateMonthlyVisitCount(data.monthlyVisitCount);
+  } catch (e) {
+    console.error("monthly visits fetch exception", e);
+    await reportClientError("monthly_visits_fetch_failed", e.message || String(e), "refreshMonthlyVisitCount");
+  }
+}
+
 async function reportClientError(event, detail, stage) {
   try {
     await fetch("/client-log", {
@@ -309,6 +333,8 @@ async function init() {
       currentDisplayName = LOCAL_DEV_USER.displayName;
     }
 
+    await refreshMonthlyVisitCount();
+
     const profileReady = await ensureProfile(currentUserId);
     if (!profileReady) {
       return;
@@ -341,7 +367,11 @@ async function autoToggleCheckin() {
     }
     const statusData = await statusRes.json();
     updateCapacityBar(statusData.count, MAX_FALLBACK);
-    updateMonthlyVisitCount(statusData.monthlyVisitCount);
+    if (Object.prototype.hasOwnProperty.call(statusData, "monthlyVisitCount")) {
+      updateMonthlyVisitCount(statusData.monthlyVisitCount);
+    } else {
+      await refreshMonthlyVisitCount();
+    }
 
     if (statusData.checkedIn) {
       if (!statusData.canAutoCheckout) {
@@ -396,7 +426,11 @@ async function autoToggleCheckin() {
 
     const checkinData = await checkinRes.json();
     updateCapacityBar(checkinData.count, MAX_FALLBACK);
-    updateMonthlyVisitCount(checkinData.monthlyVisitCount);
+    if (Object.prototype.hasOwnProperty.call(checkinData, "monthlyVisitCount")) {
+      updateMonthlyVisitCount(checkinData.monthlyVisitCount);
+    } else {
+      await refreshMonthlyVisitCount();
+    }
     showResultMessage(
       checkinData.message || "チェックインが完了しました。",
       false,
@@ -420,13 +454,13 @@ function updateCapacityBar(count, max) {
   fill.style.width = `${percent}%`;
 
   if (percent > 69) {
-    fill.style.background = "linear-gradient(90deg, #e05252 0%, #c53030 100%)";
+    fill.style.background = "linear-gradient(90deg, #f43f5e 0%, #e11d48 100%)";
     icon.src = "./hard.png";
   } else if (percent > 49) {
-    fill.style.background = "linear-gradient(90deg, #d9a441 0%, #b7791f 100%)";
+    fill.style.background = "linear-gradient(90deg, #fb923c 0%, #f97316 100%)";
     icon.src = "./normal.png";
   } else {
-    fill.style.background = "linear-gradient(90deg, #3ba56d 0%, #1f7a4d 100%)";
+    fill.style.background = "linear-gradient(90deg, #22c55e 0%, #16a34a 100%)";
     icon.src = "./good.png";
   }
 

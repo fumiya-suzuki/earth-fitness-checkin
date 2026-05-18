@@ -236,6 +236,46 @@ func handleStatus(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// GET /member/monthly-visits?userId=xxxx
+func handleMemberMonthlyVisits(w http.ResponseWriter, r *http.Request) {
+	fields := eventFieldsFromRequest(r)
+	if r.Method != http.MethodGet {
+		fields["status"] = http.StatusMethodNotAllowed
+		appLog.error("request_error", fields)
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	userID := r.URL.Query().Get("userId")
+	if userID == "" {
+		fields["status"] = http.StatusBadRequest
+		fields["error"] = "userId is required"
+		appLog.error("request_error", fields)
+		http.Error(w, "userId is required", http.StatusBadRequest)
+		return
+	}
+
+	monthlyVisitCount, err := getMonthlyVisitCount(userID)
+	if err != nil {
+		log.Println("getMonthlyVisitCount error:", err)
+		fields["line_user_id"] = userID
+		fields["operation"] = "get_monthly_visit_count"
+		fields["error"] = err.Error()
+		appLog.error("db_error", fields)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	fields["line_user_id"] = userID
+	fields["monthly_visit_count"] = monthlyVisitCount
+	appLog.info("monthly_visit_count_checked", fields)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]int{
+		"monthlyVisitCount": monthlyVisitCount,
+	})
+}
+
 // POST /client-log
 func handleClientLog(w http.ResponseWriter, r *http.Request) {
 	fields := eventFieldsFromRequest(r)

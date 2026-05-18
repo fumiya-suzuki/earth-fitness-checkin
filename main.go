@@ -42,6 +42,7 @@ func main() {
 	handle("/count-json", handleCountJSON)
 	handle("/status", handleStatus)
 	handle("/client-log", handleClientLog)
+	handle("/member/monthly-visits", handleMemberMonthlyVisits)
 	handle("/admin/login", adminAuth.handleLogin)
 	handleAdmin("/admin/logout", adminAuth.handleLogout)
 
